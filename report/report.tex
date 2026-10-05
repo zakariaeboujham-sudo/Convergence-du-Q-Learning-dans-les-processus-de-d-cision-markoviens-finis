@@ -1,0 +1,333 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[ruled,vlined,linesnumbered,french]{algorithm2e}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+\usepackage{caption}
+\usepackage{subcaption}
+\setlength{\emergencystretch}{3em}
+\usepackage[section]{placeins}
+
+\graphicspath{{../results/figures/}}
+
+% ---------------- Théorèmes ----------------
+\theoremstyle{plain}
+\newtheorem{theoreme}{Théorème}[section]
+\newtheorem{proposition}[theoreme]{Proposition}
+\newtheorem{lemme}[theoreme]{Lemme}
+\newtheorem{corollaire}[theoreme]{Corollaire}
+\theoremstyle{definition}
+\newtheorem{definition}[theoreme]{Définition}
+\newtheorem{exemple}[theoreme]{Exemple}
+\newtheorem{hypothese}[theoreme]{Hypothèse}
+\theoremstyle{remark}
+\newtheorem{remarque}[theoreme]{Remarque}
+
+\crefname{theoreme}{théorème}{théorèmes}
+\crefname{proposition}{proposition}{propositions}
+\crefname{lemme}{lemme}{lemmes}
+\crefname{corollaire}{corollaire}{corollaires}
+\crefname{definition}{définition}{définitions}
+\crefname{remarque}{remarque}{remarques}
+\crefname{figure}{figure}{figures}
+\crefname{table}{tableau}{tableaux}
+\crefname{section}{section}{sections}
+\crefname{equation}{équation}{équations}
+
+% ---------------- Notations ----------------
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\E}{\mathbb{E}}
+\renewcommand{\P}{\mathbb{P}}
+\newcommand{\cS}{\mathcal{S}}
+\newcommand{\cA}{\mathcal{A}}
+\newcommand{\cM}{\mathcal{M}}
+\newcommand{\cF}{\mathcal{F}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\ninf}[1]{\left\lVert #1 \right\rVert_\infty}
+\newcommand{\abs}[1]{\left\lvert #1 \right\rvert}
+\newcommand{\Rmax}{R_{\max}}
+\newcommand{\1}{\mathbf{1}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+\newcolumntype{C}{>{\centering\arraybackslash}p{1.6cm}}
+
+\input{generated/results.tex}
+
+\title{\textbf{Analyse mathématique de la convergence du Q-Learning\\ dans les processus de décision markoviens finis}\\[0.6em]
+\large Mathematical Analysis of Q-Learning Convergence in Finite Markov Decision Processes}
+\author{Zakariae Boujham}
+\date{Octobre 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Ce travail étudie pourquoi l'algorithme Q-Learning converge vers une fonction d'action-valeur optimale dans un processus de décision markovien (MDP) fini, et sous quelles hypothèses. Partant des chaînes de Markov, on construit les fonctions de valeur et les équations de Bellman, puis on démontre que l'opérateur d'optimalité de Bellman est une contraction de rapport $\gamma$ pour la norme infinie. Le théorème du point fixe de Banach donne alors l'existence et l'unicité de $Q^*$, la convergence géométrique de Value Iteration et l'optimalité de toute politique gloutonne pour $Q^*$. Le Q-Learning est ensuite interprété comme une version stochastique, asynchrone et sans modèle de cette itération de point fixe : on démontre l'identité clé $\E[\delta_t\mid\text{passé}, s_t,a_t]=(TQ_t-Q_t)(s_t,a_t)$, on étudie en détail les conditions de Robbins-Monro dans le cas scalaire, puis on énonce et on explique le théorème de convergence presque sûre. La partie numérique, entièrement programmée en Python sans bibliothèque d'apprentissage par renforcement, porte sur un GridWorld stochastique $4\times4$ : $Q^*$ y est calculé par Value Iteration puis sert de référence pour mesurer $\ninf{Q_t-Q^*}$ et l'influence de $\gamma$, $\alpha$ et $\varepsilon$. Tous les nombres cités proviennent de l'exécution du code fourni.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%=====================================================================
+\section{Introduction}
+%=====================================================================
+
+\subsection{Problématique}
+
+Un agent interagit avec un système qui, à chaque instant, se trouve dans un état $s$. L'agent choisit une action $a$ ; le système passe alors aléatoirement dans un nouvel état $s'$ et renvoie une récompense numérique. L'objectif de l'agent est de maximiser la somme actualisée des récompenses futures. Lorsque les probabilités de transition sont connues, ce problème relève de la programmation dynamique (Bellman, 1957). Lorsqu'elles sont inconnues, l'agent doit apprendre à partir de ses seules observations $(s_t,a_t,r_t,s_{t+1})$ : c'est l'apprentissage par renforcement.
+
+Le Q-Learning, proposé par Watkins (1989), est l'algorithme le plus simple de ce second cadre. Sa règle de mise à jour tient en une ligne :
+\[
+Q_{t+1}(s_t,a_t)=Q_t(s_t,a_t)+\alpha_t\Big[r_t+\gamma\max_a Q_t(s_{t+1},a)-Q_t(s_t,a_t)\Big].
+\]
+La question qui guide ce travail est la suivante.
+
+\begin{quote}
+\emph{Pourquoi l'algorithme Q-Learning converge-t-il vers une solution optimale dans un processus de décision markovien fini, et sous quelles hypothèses mathématiques cette convergence est-elle garantie ?}
+\end{quote}
+
+Plus précisément, on veut comprendre comment la propriété de contraction de l'opérateur de Bellman, le théorème du point fixe de Banach et l'approximation stochastique s'articulent pour expliquer cette convergence.
+
+\subsection{Chaîne logique du rapport}
+
+Le rapport suit la progression
+\begin{gather*}
+\text{probabilités}\to\text{chaînes de Markov}\to\text{MDP}\to\text{fonctions de valeur}\\
+\to\text{équations de Bellman}\to\text{opérateur de Bellman}\to\text{contraction}\\
+\to\text{point fixe unique }Q^*\to\text{Q-Learning}\to\text{convergence }Q_t\to Q^*.
+\end{gather*}
+Le cœur mathématique est le lien
+\[
+\boxed{\text{théorie du point fixe}\;\longrightarrow\;\text{équation de Bellman}\;\longrightarrow\;\text{Q-Learning}.}
+\]
+
+\subsection{Ce qui est démontré, expliqué ou admis}
+
+Pour être honnête sur le niveau de rigueur, on distingue trois statuts.
+\begin{itemize}
+\item \textbf{Démontré complètement} : convergence de la série géométrique, bornitude du retour, complétude de $(\R^d,\ninf{\cdot})$, théorème de Banach avec estimations d'erreur, formule de Chapman-Kolmogorov, équations de Bellman, contraction de l'opérateur de Bellman, existence et unicité de $Q^*$ et optimalité de la politique gloutonne (parmi les politiques stationnaires), convergence de Value Iteration, borne de perte d'une politique gloutonne approchée, identité d'espérance de l'erreur TD, analyse du schéma de Robbins-Monro scalaire.
+\item \textbf{Expliqué rigoureusement, preuve esquissée} : visite infinie des paires $(s,a)$ sous $\varepsilon$-glouton, théorème de convergence presque sûre du Q-Learning via le lemme d'approximation stochastique de Jaakkola, Jordan et Singh (1994).
+\item \textbf{Mentionné} : existence de la loi des trajectoires (théorème d'Ionescu-Tulcea), optimalité des politiques stationnaires parmi toutes les politiques dépendant de l'historique, outils de martingales, vitesses de convergence.
+\end{itemize}
+
+\subsection{Plan}
+
+La \cref{sec-prelim} rassemble les outils (probabilités, normes, contractions, théorème de Banach). Les \cref{sec-markov,sec-mdp,sec-valeurs} introduisent chaînes de Markov, MDP et fonctions de valeur. Les \cref{sec-bellman,sec-operateur} établissent les équations de Bellman et la contraction. La \cref{sec-vi} traite Value Iteration, la \cref{sec-qlearning} le Q-Learning. La \cref{sec-experiences} présente les expériences, discutées en \cref{sec-discussion}.
+
+%=====================================================================
+\section{Préliminaires mathématiques}\label{sec-prelim}
+%=====================================================================
+
+\subsection{Probabilités discrètes}
+
+Tous les ensembles d'états et d'actions de ce travail sont finis. On se place sur un espace probabilisé $(\Omega,\cF,\P)$.
+
+\begin{definition}[Probabilité conditionnelle]
+Si $B$ est un événement tel que $\P(B)>0$, la probabilité de $A$ sachant $B$ est
+\[
+\P(A\mid B)=\frac{\P(A\cap B)}{\P(B)}.
+\]
+L'application $A\mapsto\P(A\mid B)$ est une probabilité sur $(\Omega,\cF)$.
+\end{definition}
+
+Pour une variable aléatoire $X$ à valeurs dans un ensemble fini ou dénombrable $E$, la \emph{loi} de $X$ est la famille $(\P(X=x))_{x\in E}$. Si $X$ est réelle et bornée, son espérance conditionnelle sachant $B$ est $\E[X\mid B]=\sum_x x\,\P(X=x\mid B)$. Une expression comme $\P(X_{t+1}=s'\mid X_t=s)$ se lit donc : « parmi les issues où l'on est en $s$ à l'instant $t$, proportion de celles où l'on est en $s'$ à l'instant $t+1$ ».
+
+\begin{lemme}[Formule des probabilités totales, version espérance]\label{lem-totale}
+Soit $(B_i)_{i\in I}$ une partition finie ou dénombrable de $B$ en événements de probabilité strictement positive et $X$ une variable bornée. Alors
+\[
+\E[X\mid B]=\sum_{i\in I}\P(B_i\mid B)\,\E[X\mid B_i].
+\]
+\end{lemme}
+\begin{proof}
+Par définition et par $\sigma$-additivité, $\E[X\1_B]=\sum_i\E[X\1_{B_i}]=\sum_i\P(B_i)\E[X\mid B_i]$. On divise par $\P(B)$ et on utilise $\P(B_i)/\P(B)=\P(B_i\mid B)$ puisque $B_i\subset B$.
+\end{proof}
+
+Ce lemme, appliqué en conditionnant sur l'action puis sur l'état suivant, est exactement le mécanisme qui produira les équations de Bellman.
+
+\subsection{Séries géométriques}
+
+\begin{proposition}\label{prop-geom}
+Pour $0\le\gamma<1$, la série $\sum_{k\ge0}\gamma^k$ converge et $\sum_{k=0}^\infty\gamma^k=\frac{1}{1-\gamma}$. Pour $\gamma\ge1$, elle diverge.
+\end{proposition}
+\begin{proof}
+Pour $\gamma\ne1$, $(1-\gamma)\sum_{k=0}^{n}\gamma^k=1-\gamma^{n+1}$ (somme télescopique), d'où $\sum_{k=0}^{n}\gamma^k=\frac{1-\gamma^{n+1}}{1-\gamma}$. Si $0\le\gamma<1$, $\gamma^{n+1}\to0$ et la somme tend vers $1/(1-\gamma)$. Si $\gamma\ge1$, le terme général $\gamma^k\ge1$ ne tend pas vers $0$ et la série diverge.
+\end{proof}
+
+\subsection{Normes et norme infinie}
+
+On identifie une fonction $Q:\cS\times\cA\to\R$ à un vecteur de $\R^{d}$ avec $d=|\cS|\,|\cA|$.
+
+\begin{definition}[Norme infinie]
+Pour $x\in\R^d$, $\ninf{x}=\max_{1\le i\le d}\abs{x_i}$. Pour deux fonctions $Q_1,Q_2$,
+\[
+\ninf{Q_1-Q_2}=\max_{(s,a)\in\cS\times\cA}\abs{Q_1(s,a)-Q_2(s,a)}.
+\]
+\end{definition}
+
+\paragraph{Interprétation.} $\ninf{Q_1-Q_2}\le\eta$ signifie que \emph{toutes} les valeurs de $Q_1$ sont à moins de $\eta$ de celles de $Q_2$ : c'est une garantie uniforme, « dans le pire des cas ». La boule unité est l'hypercube $[-1,1]^d$. C'est la norme naturelle ici, car l'opérateur de Bellman fait intervenir un $\max$ et des moyennes pondérées, deux opérations qui ne dilatent pas les écarts uniformes (\cref{lem-max,lem-moyenne}).
+
+On vérifie immédiatement les axiomes de norme : $\ninf{x}=0\iff x=0$, $\ninf{\lambda x}=\abs\lambda\ninf{x}$, et $\abs{x_i+y_i}\le\abs{x_i}+\abs{y_i}\le\ninf{x}+\ninf{y}$ pour tout $i$, donc $\ninf{x+y}\le\ninf{x}+\ninf{y}$.
+
+\begin{proposition}\label{prop-complet}
+L'espace $(\R^d,\ninf{\cdot})$ est complet.
+\end{proposition}
+\begin{proof}
+Soit $(x^{(n)})$ une suite de Cauchy. Pour chaque coordonnée $i$, $\abs{x^{(n)}_i-x^{(m)}_i}\le\ninf{x^{(n)}-x^{(m)}}$, donc $(x^{(n)}_i)_n$ est de Cauchy dans $\R$, qui est complet : elle converge vers un réel $x_i$. Soit $\eta>0$ et $N$ tel que $\ninf{x^{(n)}-x^{(m)}}\le\eta$ pour $n,m\ge N$. En faisant $m\to\infty$ coordonnée par coordonnée, $\abs{x^{(n)}_i-x_i}\le\eta$ pour tout $i$ et tout $n\ge N$, soit $\ninf{x^{(n)}-x}\le\eta$. Donc $x^{(n)}\to x$.
+\end{proof}
+
+\begin{lemme}[Écart entre deux maxima]\label{lem-max}
+Pour $f,g:\cA\to\R$ avec $\cA$ fini,
+\[
+\Big|\max_{a}f(a)-\max_{a}g(a)\Big|\le\max_{a}\abs{f(a)-g(a)}.
+\]
+\end{lemme}
+\begin{proof}
+Notons $M=\max_a\abs{f(a)-g(a)}$. Pour tout $a$, $f(a)=g(a)+(f(a)-g(a))\le g(a)+M\le\max_b g(b)+M$. Le membre de droite ne dépend plus de $a$ ; en passant au maximum sur $a$ à gauche, $\max f\le\max g+M$. Par symétrie des rôles, $\max g\le\max f+M$. Les deux inégalités donnent $\abs{\max f-\max g}\le M$.
+\end{proof}
+
+\begin{remarque}
+L'inégalité est optimale : si $g=f+c$ avec $c$ constante, les deux membres valent $\abs c$. Elle est en revanche souvent stricte : avec $f=(0,1)$ et $g=(1,1)$, on a $\max f-\max g=0$ alors que $\max\abs{f-g}=1$.
+\end{remarque}
+
+\begin{lemme}[Une moyenne ne dilate pas l'écart uniforme]\label{lem-moyenne}
+Si $p$ est une loi de probabilité sur un ensemble fini $\cS$ et $u:\cS\to\R$, alors $\abs{\sum_{s'}p(s')u(s')}\le\sum_{s'}p(s')\abs{u(s')}\le\ninf{u}$.
+\end{lemme}
+\begin{proof}
+Inégalité triangulaire, puis $\abs{u(s')}\le\ninf u$ et $\sum_{s'}p(s')=1$.
+\end{proof}
+
+\subsection{Applications contractantes et théorème de Banach}
+
+\begin{definition}
+Soit $(X,d)$ un espace métrique. Une application $T:X\to X$ est \emph{$c$-lipschitzienne} si $d(Tx,Ty)\le c\,d(x,y)$ pour tous $x,y$. Elle est \emph{contractante} si elle est $c$-lipschitzienne avec une constante $c<1$.
+\end{definition}
+
+Intuitivement, une contraction rapproche systématiquement deux points d'un facteur au moins $c$. En itérant, toutes les trajectoires se resserrent les unes contre les autres, et il ne reste de place que pour un seul point invariant.
+
+\begin{exemple}
+Sur $\R$, $T(x)=\frac{x}{2}+1$ est une contraction de rapport $1/2$ ; son unique point fixe est $x^*=2$ et, depuis $x_0=0$, on obtient $1,\ 1.5,\ 1.75,\ \dots$, avec $\abs{x_n-2}=2\cdot2^{-n}$. En revanche $T(x)=x+1$ est $1$-lipschitzienne mais sans point fixe : la condition $c<1$ est indispensable.
+\end{exemple}
+
+\begin{theoreme}[Point fixe de Banach, 1922]\label{thm-banach}
+Soit $(X,d)$ un espace métrique complet non vide et $T:X\to X$ une contraction de rapport $c\in[0,1)$. Alors :
+\begin{enumerate}[label=(\roman*)]
+\item $T$ possède un unique point fixe $x^*$ ;
+\item pour tout $x_0\in X$, la suite $x_{n+1}=T(x_n)$ converge vers $x^*$ ;
+\item estimation a priori : $d(x_n,x^*)\le c^n\,d(x_0,x^*)$ et $d(x_n,x^*)\le\dfrac{c^n}{1-c}\,d(x_1,x_0)$ ;
+\item estimation a posteriori : $d(x_{n+1},x^*)\le\dfrac{c}{1-c}\,d(x_{n+1},x_n)$.
+\end{enumerate}
+\end{theoreme}
+\begin{proof}
+\emph{Étape 1 (pas successifs).} Par récurrence,
+\[
+d(x_{k+1},x_k)=d(Tx_k,Tx_{k-1})\le c\,d(x_k,x_{k-1})\le\dots\le c^k d(x_1,x_0).
+\]
+
+\emph{Étape 2 (suite de Cauchy).} Pour $m>n$, par l'inégalité triangulaire et la \cref{prop-geom},
+\[
+d(x_m,x_n)\le\sum_{k=n}^{m-1}d(x_{k+1},x_k)\le d(x_1,x_0)\sum_{k=n}^{m-1}c^k\le\frac{c^n}{1-c}\,d(x_1,x_0).
+\]
+Le membre de droite tend vers $0$ quand $n\to\infty$, donc $(x_n)$ est de Cauchy. L'espace étant complet, elle converge vers un $x^*\in X$.
+
+\emph{Étape 3 ($x^*$ est fixe).} Une contraction est continue (elle est lipschitzienne). Donc $T(x^*)=T(\lim x_n)=\lim T(x_n)=\lim x_{n+1}=x^*$.
+
+\emph{Étape 4 (unicité).} Si $Tx^*=x^*$ et $Ty^*=y^*$, alors $d(x^*,y^*)=d(Tx^*,Ty^*)\le c\,d(x^*,y^*)$, soit $(1-c)d(x^*,y^*)\le0$, donc $d(x^*,y^*)=0$ car $c<1$.
+
+\emph{Étape 5 (estimations).} $d(x_n,x^*)=d(Tx_{n-1},Tx^*)\le c\,d(x_{n-1},x^*)\le\dots\le c^n d(x_0,x^*)$. En faisant $m\to\infty$ dans l'étape 2, $d(x^*,x_n)\le\frac{c^n}{1-c}d(x_1,x_0)$. Enfin, en appliquant cette dernière inégalité avec $n=1$ à la suite qui démarre en $x_n$ (son premier terme est $x_{n+1}$), on obtient $d(x_{n+1},x^*)\le\frac{c}{1-c}d(x_{n+1},x_n)$.
+\end{proof}
+
+\begin{remarque}
+Le point (iv) est celui qu'on utilise en pratique : il transforme une quantité \emph{observable} (l'écart entre deux itérés) en une garantie sur l'erreur \emph{inobservable} par rapport au point fixe. C'est la justification du critère d'arrêt de Value Iteration (\cref{sec-vi}).
+\end{remarque}
+
+%=====================================================================
+\section{Chaînes de Markov finies}\label{sec-markov}
+%=====================================================================
+
+\subsection{Définition}
+
+\begin{definition}
+Soit $E$ un ensemble fini. Une suite de variables aléatoires $(X_t)_{t\ge0}$ à valeurs dans $E$ est une \emph{chaîne de Markov homogène} de matrice de transition $P=(p_{ij})_{i,j\in E}$ si, pour tout $t$ et tous $i_0,\dots,i_{t-1},i,j$ tels que l'événement conditionnant soit de probabilité positive,
+\[
+\P(X_{t+1}=j\mid X_t=i,X_{t-1}=i_{t-1},\dots,X_0=i_0)=\P(X_{t+1}=j\mid X_t=i)=p_{ij}.
+\]
+\end{definition}
+
+La première égalité est la \emph{propriété de Markov} : connaissant le présent, le passé n'apporte aucune information supplémentaire sur le futur immédiat. La seconde est l'homogénéité : la règle de transition ne dépend pas de $t$. Le passé n'est pas « oublié » pour autant : il a influencé le présent, mais toute l'information utile sur l'avenir est résumée par l'état présent.
+
+\begin{proposition}
+La matrice $P$ est \emph{stochastique} : $p_{ij}\ge0$ et $\sum_{j\in E}p_{ij}=1$ pour tout $i$.
+\end{proposition}
+\begin{proof}
+$p_{ij}$ est une probabilité, donc positive, et $\sum_j p_{ij}=\P(X_{t+1}\in E\mid X_t=i)=1$.
+\end{proof}
+
+\subsection{Transitions en plusieurs étapes}
+
+\begin{theoreme}[Chapman-Kolmogorov]\label{thm-ck}
+Pour tout $n\ge1$ et tous $i,j\in E$ avec $\P(X_0=i)>0$,
+\[
+\P(X_n=j\mid X_0=i)=(P^n)_{ij}.
+\]
+Plus généralement, $\P(X_{m+n}=j\mid X_m=i)=(P^n)_{ij}$.
+\end{theoreme}
+\begin{proof}
+Par récurrence sur $n$. Pour $n=1$ c'est la définition. Supposons le résultat vrai au rang $n$. On partitionne l'événement selon la valeur de $X_n$ (formule des probabilités totales) :
+\begin{align*}
+\P(X_{n+1}=j\mid X_0=i)
+&=\sum_{k\in E}\P(X_n=k\mid X_0=i)\,\P(X_{n+1}=j\mid X_n=k,X_0=i)\\
+&=\sum_{k\in E}(P^n)_{ik}\,p_{kj}=(P^{n+1})_{ij}.
+\end{align*}
+On a utilisé l'hypothèse de récurrence pour le premier facteur et la propriété de Markov pour le second : $\P(X_{n+1}=j\mid X_n=k,X_0=i)=p_{kj}$. Cette dernière égalité découle de la définition en décomposant selon les valeurs intermédiaires $X_1,\dots,X_{n-1}$ (chaque terme vaut $p_{kj}$ par la propriété de Markov, et la moyenne pondérée de termes égaux à $p_{kj}$ vaut $p_{kj}$). La version décalée se démontre de même.
+\end{proof}
+
+\paragraph{Interprétation.} $(P^n)_{ij}=\sum_{k_1,\dots,k_{n-1}}p_{ik_1}p_{k_1k_2}\cdots p_{k_{n-1}j}$ est la somme, sur tous les chemins de longueur $n$ allant de $i$ à $j$, des probabilités de ces chemins. Le produit matriciel effectue exactement cette somme sur les états intermédiaires. En particulier $P^n$ est encore stochastique.
+
+\subsection{Exemple numérique}\label{sec-markov-ex}
+
+On considère la chaîne à quatre états de matrice
+\[
+P=\begin{pmatrix}
+0.5&0.3&0.2&0\\
+0.2&0.5&0.2&0.1\\
+0.1&0.3&0.4&0.2\\
+0&0.2&0.3&0.5
+\end{pmatrix}.
+\]
+Le script \texttt{experiments/markov\_chain\_example.py} calcule
+\[
+P^2=\MarkovPtwo,\qquad P^3=\MarkovPthree.
+\]
+Par exemple $(P^2)_{14}=\MarkovPtwoOneFour$ : on ne peut pas aller de l'état 1 à l'état 4 en une étape ($p_{14}=0$), mais on le peut en deux étapes, uniquement en passant par l'état 2 ou l'état 3 : $(P^2)_{14}=p_{12}p_{24}+p_{13}p_{34}=0.3\times0.1+0.2\times0.2=0.07$. On vérifie aussi numériquement que chaque ligne de $P^2$ et $P^3$ somme à $1$.
+
+Pour confronter la formule $(P^n)_{ij}=\P(X_n=j\mid X_0=i)$ à la simulation, on a simulé $\MarkovRuns$ trajectoires de longueur $3$ issues de l'état 1. Les fréquences empiriques de $X_3$ sont $\MarkovMC$, contre $\MarkovExactRow$ pour la première ligne de $P^3$ ; l'écart maximal est $\MarkovDev$, du même ordre que l'écart-type de Monte-Carlo $\sqrt{1/(4n)}\approx\MarkovStd$. Enfin $P^{50}$ a toutes ses lignes égales (à $10^{-4}$ près) à la loi stationnaire $\mu=\MarkovMu$, solution de $\mu P=\mu$ : la chaîne oublie son état initial. Ce phénomène (théorème ergodique pour les chaînes irréductibles apériodiques) n'est pas démontré ici ; il illustre déjà le thème du rapport, la convergence d'itérations d'un opérateur. La \cref{fig-markov} visualise ces matrices.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{fig_markov_powers.pdf}
+\caption{Puissances de la matrice de transition de l'exemple : $P$, $P^2$, $P^3$, $P^{50}$. Le coefficient $(i,j)$ de $P^n$ est la probabilité d'être en $j$ après $n$ pas en partant de $i$.}
+\label{fig-markov}
+\end{figure}
+
+\input{sections/04_mdp.tex}
+\input{sections/06_operateur_vi.tex}
+\input{sections/07_qlearning.tex}
+\input{sections/08_experiences.tex}
+\input{sections/09_discussion.tex}
+\input{sections/10_annexes.tex}
+
+\end{document}
