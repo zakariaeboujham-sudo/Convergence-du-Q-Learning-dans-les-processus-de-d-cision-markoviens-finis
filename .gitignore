@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.fls
+report/*.fdb_latexmk
+report/*.synctex.gz
+results/data/log_*.txt
+results/data/*_done
