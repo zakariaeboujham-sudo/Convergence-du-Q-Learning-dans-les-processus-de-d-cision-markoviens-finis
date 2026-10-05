@@ -1,0 +1,52 @@
+\appendix
+
+%=====================================================================
+\section{Réponses courtes aux questions du cahier des charges}\label{sec-reponses}
+%=====================================================================
+
+Cette annexe sert d'aide-mémoire pour la soutenance ; chaque réponse renvoie à la partie qui la justifie.
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Qu'est-ce qu'un MDP ?} Un quintuplet $(\cS,\cA,P,R,\gamma)$ : des états, des actions, un noyau de transition $P(s'\mid s,a)$, une récompense $R(s,a,s')$ et un facteur d'actualisation $\gamma<1$ (\cref{def-mdp}).
+\item \textbf{Pourquoi est-il markovien ?} La loi de l'état suivant et de la récompense ne dépend du passé qu'à travers l'état et l'action présents, ce qui se lit dans la forme produit \eqref{eq-loi-traj} ; sous une politique fixée, les états forment une chaîne de Markov de matrice $P_\pi$ (\cref{prop-chaine-induite}).
+\item \textbf{Qu'est-ce qu'une politique ?} Une règle de décision $\pi(a\mid s)$, loi sur les actions dans chaque état ; déterministe si elle choisit une action unique $\pi(s)$.
+\item \textbf{Quelle différence entre $V$ et $Q$ ?} $V^\pi(s)$ est le retour moyen depuis $s$ en suivant $\pi$ ; $Q^\pi(s,a)$ impose la première action $a$. On a $V^\pi(s)=\sum_a\pi(a\mid s)Q^\pi(s,a)$. Connaître $Q$ permet d'agir ($\argmax_aQ$) sans connaître le modèle (\cref{sec-valeurs}).
+\item \textbf{D'où vient Bellman ?} De la relation $G_t=R_{t+1}+\gamma G_{t+1}$, de la propriété de Markov (redémarrage, \cref{lem-redemarrage}) et de la formule des probabilités totales (\cref{thm-bellman-pi}).
+\item \textbf{Pourquoi Bellman possède-t-il un point fixe ?} Parce que $T$ est une contraction de rapport $\gamma<1$ de l'espace complet $(\R^{\cS\times\cA},\ninf\cdot)$ et que le théorème de Banach s'applique (\cref{thm-contraction,thm-banach}).
+\item \textbf{Pourquoi est-il unique ?} Si $Q_1$ et $Q_2$ sont fixes, $\ninf{Q_1-Q_2}=\ninf{TQ_1-TQ_2}\le\gamma\ninf{Q_1-Q_2}$, ce qui force $\ninf{Q_1-Q_2}=0$.
+\item \textbf{Pourquoi Value Iteration converge-t-elle ?} C'est l'itération $Q_{k+1}=TQ_k$ du théorème de Banach : $\ninf{Q_k-Q^*}\le\gamma^k\ninf{Q_0-Q^*}$ (\cref{thm-vi}).
+\item \textbf{Quelle différence entre Value Iteration et Q-Learning ?} Value Iteration calcule l'espérance exacte de $T$ avec le modèle et met à jour toutes les paires ; le Q-Learning remplace l'espérance par un échantillon, met à jour une seule paire par pas et moyenne le bruit avec un pas $\alpha_t$ (forme \eqref{eq-sa-form}).
+\item \textbf{Pourquoi Q-Learning n'a-t-il pas besoin du modèle ?} Parce que sa cible $r_t+\gamma\max_aQ_t(s_{t+1},a)$ est un estimateur sans biais de $(TQ_t)(s_t,a_t)$ construit avec la seule transition observée (\cref{prop-td}) ; c'est la nature qui effectue le tirage selon $P$.
+\item \textbf{Pourquoi faut-il explorer ?} Une paire visitée un nombre fini de fois n'est corrigée qu'un nombre fini de fois et ne peut pas converger ; un agent purement glouton peut se figer sur une estimation fausse (\cref{sec-exploration} ; observé avec $\varepsilon=0$, \cref{sec-exp-eps}).
+\item \textbf{Rôle de $\gamma$ ?} Pondération du futur (horizon effectif $1/(1-\gamma)$), garantie de finitude des valeurs et rapport de contraction : plus $\gamma$ est proche de $1$, plus l'agent est prévoyant et plus la convergence garantie est lente.
+\item \textbf{Rôle de $\alpha$ ?} Taille du pas de correction : compromis entre réactivité et stabilité. Robbins-Monro ($\sum\alpha=\infty$, $\sum\alpha^2<\infty$) garantit la convergence ; un pas constant laisse un plancher de bruit (\cref{sec-rm}, \cref{sec-exp-alpha}).
+\item \textbf{Rôle de $\varepsilon$ ?} Fréquence des actions aléatoires : assure la visite de toutes les paires, au prix d'une moins bonne récompense pendant l'apprentissage (\cref{sec-exp-eps}).
+\item \textbf{Sous quelles hypothèses Q-Learning converge-t-il ?} MDP fini, récompenses bornées, $\gamma<1$, chaque paire visitée infiniment souvent, pas vérifiant Robbins-Monro pour chaque paire ; alors $Q_t\to Q^*$ presque sûrement (\cref{thm-ql}).
+\end{enumerate}
+
+%=====================================================================
+\section{Code et reproductibilité}\label{sec-code}
+%=====================================================================
+
+Le code est écrit en Python avec \texttt{numpy} et \texttt{matplotlib} uniquement, sans bibliothèque d'apprentissage par renforcement.
+
+\begin{center}
+\small
+\begin{tabular}{l>{\raggedright\arraybackslash}p{0.58\linewidth}}
+\toprule
+fichier & contenu\\
+\midrule
+\texttt{src/environment.py} & GridWorld : états, actions, $P[s,a,s']$, $R[s,a,s']$, \texttt{reset()}, \texttt{step()}\\
+\texttt{src/value\_iteration.py} & opérateurs $T$ et $T^\pi$, Value Iteration, évaluation exacte d'une politique\\
+\texttt{src/q\_learning.py} & Q-Learning tabulaire, taux d'apprentissage, historique des mesures\\
+\texttt{src/policies.py} & politiques gloutonne et $\varepsilon$-gloutonne\\
+\texttt{src/markov\_chain.py} & chaînes de Markov : puissances, simulation, loi stationnaire\\
+\texttt{src/utils.py} & norme infinie, sauvegardes, dessin de la grille et des politiques\\
+\texttt{experiments/*.py} & une expérience par script (Markov, VI, principale, $\gamma$, $\alpha$, $\varepsilon$)\\
+\texttt{tests/test\_core.py} & tests : noyau stochastique, lemme du max, contraction, point fixe, bornes\\
+\texttt{report/make\_results.py} & génération des nombres et tableaux du rapport à partir des données\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Pour tout reproduire : \texttt{pip install -r requirements.txt}, puis \texttt{python run\_all.py} (environ quinze minutes sur deux cœurs), puis \texttt{python report/make\_results.py} et la compilation de \texttt{report/report.tex}. Chaque expérience fixe ses graines (\texttt{numpy.random.default\_rng(seed)}, flux séparés pour l'agent et l'environnement), si bien que deux exécutions donnent des résultats identiques.

@@ -1,0 +1,193 @@
+%=====================================================================
+\section{Q-Learning}\label{sec-qlearning}
+%=====================================================================
+
+\subsection{Pourquoi un autre algorithme ?}
+
+Value Iteration exige de connaître $P(s'\mid s,a)$ et $R(s,a,s')$ pour calculer l'espérance qui définit $T$. Dans beaucoup de problèmes, ce modèle est inconnu : l'agent ne peut qu'agir et observer des transitions $(s_t,a_t,r_t,s_{t+1})$. L'idée du Q-Learning est de remplacer l'espérance inconnue par l'échantillon observé, et de compenser le bruit ainsi introduit par une moyenne progressive.
+
+\subsection{Algorithme}
+
+\begin{algorithm}[ht]
+\caption{Q-Learning tabulaire (fonction \texttt{q\_learning})}
+\KwIn{$\gamma$, suite de pas $\alpha$, paramètre d'exploration $\varepsilon$, nombre d'épisodes}
+$Q(s,a)\leftarrow0$ pour tout $(s,a)$ ; $N(s,a)\leftarrow0$\;
+\For{chaque épisode}{
+  $s\leftarrow$ état initial\;
+  \Repeat{$s$ terminal ou nombre maximal de pas atteint}{
+    choisir $a$ selon la politique $\varepsilon$-gloutonne pour $Q$ en $s$\;
+    exécuter $a$ ; observer $r$ et $s'$\;
+    $N(s,a)\leftarrow N(s,a)+1$ ; $\alpha\leftarrow\alpha(N(s,a))$\;
+    $\delta\leftarrow r+\gamma\max_{a'}Q(s',a')-Q(s,a)$ \tcp*{avec $\max_{a'}Q(s',a')=0$ si $s'$ terminal}
+    $Q(s,a)\leftarrow Q(s,a)+\alpha\,\delta$\;
+    $s\leftarrow s'$\;
+  }
+}
+\end{algorithm}
+
+L'algorithme n'utilise jamais $P$ ni $R$ : seulement la fonction \texttt{step} de l'environnement. Dans le code, le modèle n'est utilisé que pour \emph{mesurer} l'erreur $\ninf{Q_t-Q^*}$ et la valeur des politiques apprises, jamais pour apprendre (un test unitaire vérifie que l'apprentissage fonctionne avec un modèle rendu illisible).
+
+\subsection{L'erreur temporelle}
+
+On note
+\[
+\delta_t=r_t+\gamma\max_aQ_t(s_{t+1},a)-Q_t(s_t,a_t),\qquad Q_{t+1}(s_t,a_t)=Q_t(s_t,a_t)+\alpha_t\delta_t,
+\]
+les autres coordonnées restant inchangées. La quantité $y_t=r_t+\gamma\max_aQ_t(s_{t+1},a)$ est la \emph{cible} : c'est une estimation, construite à partir d'une seule transition, de $(TQ_t)(s_t,a_t)$. L'erreur temporelle (\emph{TD error}) $\delta_t=y_t-Q_t(s_t,a_t)$ mesure l'écart entre ce que $Q_t$ prédit pour $(s_t,a_t)$ et ce que l'équation de Bellman, évaluée sur la transition observée, suggère. Si $Q_t=Q^*$, l'équation d'optimalité dit que cette cible vaut $Q^*(s_t,a_t)$ \emph{en moyenne} ; $\delta_t$ n'est alors qu'un bruit centré. La proposition suivante rend ceci précis.
+
+Soit $\cF_t$ la tribu engendrée par toute l'histoire jusqu'au choix de $a_t$ inclus : $(s_0,a_0,r_0,\dots,s_t,a_t)$. La fonction $Q_t$ est $\cF_t$-mesurable (elle est calculée à partir des transitions passées), et, par la propriété de Markov du MDP, la loi conditionnelle de $s_{t+1}$ sachant $\cF_t$ est $P(\cdot\mid s_t,a_t)$, avec $r_t=R(s_t,a_t,s_{t+1})$.
+
+\begin{proposition}[Espérance de l'erreur TD]\label{prop-td}
+\[
+\E\big[y_t\mid\cF_t\big]=(TQ_t)(s_t,a_t)\qquad\text{et donc}\qquad\E\big[\delta_t\mid\cF_t\big]=(TQ_t-Q_t)(s_t,a_t).
+\]
+\end{proposition}
+\begin{proof}
+Conditionnellement à $\cF_t$, les quantités $s_t,a_t,Q_t$ sont fixées et seul $s_{t+1}$ est aléatoire, de loi $P(\cdot\mid s_t,a_t)$. Donc
+\[
+\E[y_t\mid\cF_t]=\sum_{s'}P(s'\mid s_t,a_t)\Big[R(s_t,a_t,s')+\gamma\max_aQ_t(s',a)\Big]=(TQ_t)(s_t,a_t),
+\]
+et $Q_t(s_t,a_t)$ étant $\cF_t$-mesurable, il sort de l'espérance conditionnelle.
+\end{proof}
+
+On peut donc réécrire la mise à jour sous la forme d'une \emph{itération de point fixe bruitée et relaxée} :
+\begin{equation}\label{eq-sa-form}
+Q_{t+1}(s_t,a_t)=(1-\alpha_t)\,Q_t(s_t,a_t)+\alpha_t\Big[(TQ_t)(s_t,a_t)+w_t\Big],\qquad w_t=y_t-(TQ_t)(s_t,a_t),
+\end{equation}
+où le bruit $w_t$ vérifie $\E[w_t\mid\cF_t]=0$. De plus, $\abs{y_t}\le\Rmax+\gamma\ninf{Q_t}$ et $\abs{(TQ_t)(s_t,a_t)}\le\Rmax+\gamma\ninf{Q_t}$, donc
+\begin{equation}\label{eq-var-bound}
+\E[w_t^2\mid\cF_t]\le4\big(\Rmax+\gamma\ninf{Q_t}\big)^2\le C\big(1+\ninf{Q_t}^2\big).
+\end{equation}
+
+La forme \eqref{eq-sa-form} éclaire la relation entre les deux algorithmes.
+\begin{itemize}
+\item Si l'on mettait à jour \emph{toutes} les paires à chaque pas, avec $\alpha_t=1$ et sans bruit ($w_t=0$), on retrouverait exactement Value Iteration $Q_{t+1}=TQ_t$.
+\item Q-Learning est \emph{asynchrone} (une seule coordonnée mise à jour par pas, celle que l'agent vient de visiter), \emph{bruité} (on utilise un échantillon au lieu de l'espérance) et \emph{relaxé} (on ne fait qu'un pas de taille $\alpha_t$ vers la cible).
+\item La correction se fait dans la direction de $\delta_t$ : si la cible est au-dessus de l'estimation, on augmente $Q(s_t,a_t)$, sinon on la diminue. Le pas $\alpha_t$ règle le compromis entre réactivité (grand $\alpha$) et stabilité face au bruit (petit $\alpha$).
+\end{itemize}
+
+\subsection{Taux d'apprentissage : les conditions de Robbins-Monro}\label{sec-rm}
+
+Pour comprendre le rôle de $\alpha_t$ sans la complexité du Q-Learning, considérons le problème le plus simple d'approximation stochastique (Robbins et Monro, 1951) : estimer la moyenne $m=\E[Y]$ d'une loi de variance $\sigma^2$ à partir d'observations i.i.d.\ $Y_1,Y_2,\dots$, par
+\begin{equation}\label{eq-rm-scalaire}
+x_{n+1}=x_n+\alpha_n\,(Y_{n+1}-x_n),\qquad\alpha_n\in[0,1].
+\end{equation}
+C'est exactement la mise à jour du Q-Learning pour un MDP à un seul état et une seule action avec $\gamma=0$. On note $e_n=x_n-m$, $u_n=\E[e_n^2]$ et $\xi_{n+1}=Y_{n+1}-m$ (centré, de variance $\sigma^2$, indépendant de $e_n$). Alors
+\[
+e_{n+1}=(1-\alpha_n)e_n+\alpha_n\xi_{n+1},\qquad u_{n+1}=(1-\alpha_n)^2u_n+\alpha_n^2\sigma^2,
+\]
+le terme croisé étant nul par indépendance et centrage.
+
+\begin{proposition}[Pas $1/n$]\label{prop-rm-inv}
+Avec $\alpha_n=1/(n+1)$, $x_{n}$ est la moyenne empirique $\frac1n\sum_{k=1}^nY_k$ (quel que soit $x_0$). Par la loi des grands nombres, $x_n\to m$ presque sûrement, et $u_n=\sigma^2/n$.
+\end{proposition}
+\begin{proof}
+Par récurrence : $x_1=x_0+(Y_1-x_0)=Y_1$, et si $x_n=\frac1n\sum_{k\le n}Y_k$, alors $x_{n+1}=\frac{n}{n+1}x_n+\frac{1}{n+1}Y_{n+1}=\frac{1}{n+1}\sum_{k\le n+1}Y_k$. La variance d'une moyenne de $n$ variables i.i.d.\ est $\sigma^2/n$.
+\end{proof}
+
+\begin{proposition}[Pas constant : le bruit ne s'éteint pas]\label{prop-rm-const}
+Avec $\alpha_n=\alpha\in(0,1]$ constant,
+\[
+u_n=(1-\alpha)^{2n}u_0+\frac{\alpha\sigma^2}{2-\alpha}\Big(1-(1-\alpha)^{2n}\Big)\xrightarrow[n\to\infty]{}\frac{\alpha\,\sigma^2}{2-\alpha}>0.
+\]
+\end{proposition}
+\begin{proof}
+La suite arithmético-géométrique $u_{n+1}=(1-\alpha)^2u_n+\alpha^2\sigma^2$ a pour point fixe $\ell$ solution de $\ell=(1-\alpha)^2\ell+\alpha^2\sigma^2$, soit $\ell=\alpha^2\sigma^2/(1-(1-\alpha)^2)=\alpha\sigma^2/(2-\alpha)$, et $u_n-\ell=(1-\alpha)^{2n}(u_0-\ell)$.
+\end{proof}
+
+Avec un pas constant, l'estimateur oublie bien sa condition initiale (géométriquement), mais il continue de fluctuer indéfiniment autour de $m$, avec une variance proportionnelle à $\alpha$. C'est pourquoi on demande $\sum\alpha_n^2<\infty$.
+
+\begin{proposition}[Pas sommable : apprentissage figé]\label{prop-rm-sommable}
+Si $\alpha_n\in[0,1)$ et $\sum_n\alpha_n<\infty$, alors $\prod_{n}(1-\alpha_n)=:\Pi_\infty>0$, et $\E[e_n]=\prod_{k<n}(1-\alpha_k)\,e_0\to\Pi_\infty e_0\neq0$ dès que $x_0\neq m$. L'estimateur ne converge pas vers $m$.
+\end{proposition}
+\begin{proof}
+$\E[e_{n+1}]=(1-\alpha_n)\E[e_n]$ car $\E[\xi_{n+1}]=0$. Pour $\alpha\in[0,1/2]$, $\ln(1-\alpha)\ge-2\alpha$ (concavité de $\alpha\mapsto\ln(1-\alpha)$, qui reste au-dessus de sa corde) ; comme $\alpha_n\to0$, on a $\alpha_n\le1/2$ à partir d'un rang $n_0$, et $\sum_{n\ge n_0}\ln(1-\alpha_n)\ge-2\sum_{n\ge n_0}\alpha_n>-\infty$. Le produit converge donc vers une limite strictement positive (les facteurs avant $n_0$ sont strictement positifs).
+\end{proof}
+
+La condition $\sum\alpha_n=\infty$ garantit donc que l'algorithme « continue d'apprendre » assez longtemps pour effacer n'importe quelle initialisation.
+
+\begin{lemme}[Lemme de suite récurrente]\label{lem-chung}
+Soit $(u_n)$ une suite positive vérifiant $u_{n+1}\le(1-\alpha_n)u_n+c_n$ avec $\alpha_n\in[0,1]$, $\sum\alpha_n=\infty$, $c_n\ge0$ et $\sum c_n<\infty$. Alors $u_n\to0$.
+\end{lemme}
+\begin{proof}
+En itérant, pour $n>p$ : $u_n\le\Big(\prod_{k=p}^{n-1}(1-\alpha_k)\Big)u_p+\sum_{k=p}^{n-1}c_k$. Comme $1-x\le e^{-x}$, $\prod_{k=p}^{n-1}(1-\alpha_k)\le\exp\big(-\sum_{k=p}^{n-1}\alpha_k\big)\to0$ quand $n\to\infty$. Donc $\limsup_nu_n\le\sum_{k\ge p}c_k$ pour tout $p$, et ce reste de série convergente tend vers $0$ quand $p\to\infty$.
+\end{proof}
+
+\begin{theoreme}[Robbins-Monro, cas scalaire]\label{thm-rm}
+Si $\sum_n\alpha_n=\infty$ et $\sum_n\alpha_n^2<\infty$, alors $\E[(x_n-m)^2]\to0$.
+\end{theoreme}
+\begin{proof}
+Comme $(1-\alpha_n)^2\le1-\alpha_n$ pour $\alpha_n\in[0,1]$, on a $u_{n+1}\le(1-\alpha_n)u_n+\alpha_n^2\sigma^2$. On applique le \cref{lem-chung} avec $c_n=\alpha_n^2\sigma^2$.
+\end{proof}
+
+\paragraph{Lecture des deux conditions.}
+\begin{itemize}
+\item $\sum\alpha_n=\infty$ : la somme des pas est infinie, l'algorithme peut parcourir n'importe quelle distance et oublier n'importe quelle initialisation (\cref{prop-rm-sommable}).
+\item $\sum\alpha_n^2<\infty$ : les pas décroissent assez vite pour que la variance accumulée du bruit soit finie, si bien que les fluctuations s'éteignent (\cref{prop-rm-const}).
+\end{itemize}
+Les suites $\alpha_n=1/n^\omega$ satisfont les deux conditions si et seulement si $1/2<\omega\le1$ (séries de Riemann). C'est le cas de $1/n$ et de $1/n^{0.8}$ utilisés dans les expériences ; les pas constants ne les satisfont pas. Dans le Q-Learning, le compteur pertinent est le nombre $N_t(s,a)$ de visites de la paire mise à jour : on prend $\alpha_t=\alpha(N_t(s_t,a_t))$, de sorte que les conditions portent sur la suite des pas \emph{vus par chaque paire}.
+
+\subsection{Exploration}\label{sec-exploration}
+
+\begin{definition}[Politique $\varepsilon$-gloutonne]
+Pour $\varepsilon\in[0,1]$, la politique $\varepsilon$-gloutonne associée à $Q$ choisit, dans l'état $s$, une action de $\argmax_aQ(s,a)$ avec probabilité $1-\varepsilon$ et une action uniforme sur $\cA$ avec probabilité $\varepsilon$. Ainsi, toute action a une probabilité au moins $\varepsilon/|\cA|$ d'être choisie.
+\end{definition}
+
+\paragraph{Pourquoi la politique purement gloutonne peut échouer.} Avec $\varepsilon=0$, l'agent choisit toujours l'action qui lui \emph{semble} la meilleure d'après une estimation encore fausse. Si une action réellement meilleure a été sous-estimée au début (par exemple après une seule transition malchanceuse), elle n'est plus jamais essayée, son estimation n'est jamais corrigée et l'agent reste bloqué sur une politique sous-optimale. C'est le dilemme \emph{exploration contre exploitation} : exploiter ce que l'on sait rapporte à court terme, explorer est nécessaire pour savoir. La forme \eqref{eq-sa-form} montre la conséquence mathématique : une coordonnée $(s,a)$ qui n'est mise à jour qu'un nombre fini de fois a $\sum_t\alpha_t(s,a)<\infty$, et la \cref{prop-rm-sommable} interdit alors sa convergence.
+
+\begin{proposition}[Visites infinies sous $\varepsilon$-glouton]\label{prop-visites}
+Supposons $\varepsilon>0$, des épisodes qui redémarrent tous en un état $s_0$, et que tout état non terminal soit accessible depuis $s_0$ par une suite d'actions de probabilité positive en au plus $L$ pas, avant la fin de l'épisode. Alors, presque sûrement, chaque paire $(s,a)$ avec $s$ non terminal est visitée infiniment souvent.
+\end{proposition}
+\begin{proof}[Esquisse]
+Fixons $(s,a)$ et un chemin $s_0\to\dots\to s$ réalisable avec les actions $b_0,\dots,b_{\ell-1}$, $\ell\le L$. À chaque pas, la politique $\varepsilon$-gloutonne choisit l'action prescrite avec probabilité au moins $\varepsilon/|\cA|$, quel que soit $Q$ ; la transition prescrite a une probabilité au moins $p_{\min}>0$. Donc, conditionnellement à tout le passé, chaque épisode visite $(s,a)$ avec probabilité au moins $q=(\varepsilon p_{\min}/|\cA|)^{L}\varepsilon/|\cA|>0$. La probabilité de ne pas visiter $(s,a)$ pendant les $k$ épisodes suivant un épisode quelconque est donc au plus $(1-q)^k\to0$ ; par le lemme de Borel-Cantelli conditionnel (Lévy), $(s,a)$ est visitée lors d'une infinité d'épisodes presque sûrement.
+\end{proof}
+
+L'hypothèse ne dit rien de la \emph{fréquence} des visites : avec un départ toujours en $S$, certaines paires éloignées du chemin optimal ne sont visitées que rarement, ce qui ralentit leur convergence. Les expériences le montrent clairement (\cref{sec-exp-main}).
+
+\begin{remarque}[Initialisation optimiste]\label{rem-optimisme}
+Dans notre GridWorld, presque toutes les récompenses sont négatives et $Q^*$ est négative en la plupart des paires. L'initialisation $Q_0=0$ est donc \emph{optimiste} : une action jamais essayée paraît meilleure que toutes celles qui ont été essayées (et ont pris une valeur négative). Même avec $\varepsilon=0$, l'agent est ainsi poussé à essayer chaque action au moins une fois dans les états qu'il visite. Ce mécanisme d'exploration implicite ne garantit pas les visites infinies ; il disparaît avec une initialisation pessimiste. On teste les deux cas en \cref{sec-exp-eps}.
+\end{remarque}
+
+\subsection{Théorème de convergence}
+
+\begin{theoreme}[Watkins et Dayan, 1992 ; Jaakkola, Jordan et Singh, 1994 ; Tsitsiklis, 1994]\label{thm-ql}
+Soit un MDP fini à récompenses bornées et $0\le\gamma<1$. On note $\alpha_t(s,a)$ le pas appliqué à la paire $(s,a)$ à l'instant $t$ (avec $\alpha_t(s,a)=0$ si $(s,a)\neq(s_t,a_t)$). Si, presque sûrement, pour toute paire $(s,a)$,
+\[
+\sum_{t=0}^\infty\alpha_t(s,a)=\infty\qquad\text{et}\qquad\sum_{t=0}^\infty\alpha_t(s,a)^2<\infty,
+\]
+alors $Q_t(s,a)\to Q^*(s,a)$ presque sûrement pour toute paire $(s,a)$.
+\end{theoreme}
+
+La première condition contient implicitement l'hypothèse que \emph{chaque paire est visitée infiniment souvent} (sinon la somme des pas de cette paire est finie). Avec $\alpha_t=1/N_t(s,a)^\omega$, $1/2<\omega\le1$, les deux conditions sont exactement équivalentes à « chaque paire est visitée infiniment souvent », ce que garantit la \cref{prop-visites} sous $\varepsilon$-glouton. Le théorème ne fait aucune hypothèse sur la manière dont les actions sont choisies, pourvu que tout soit visité : le Q-Learning est \emph{hors politique} (\emph{off-policy}), il apprend $Q^*$ quelle que soit la politique de comportement.
+
+\paragraph{Structure de la preuve.} Elle repose sur un résultat général d'approximation stochastique, dont on donne l'énoncé.
+
+\begin{lemme}[Jaakkola, Jordan et Singh, 1994, théorème 1]\label{lem-jjs}
+Soit un processus $\Delta_{t+1}(x)=(1-\alpha_t(x))\Delta_t(x)+\alpha_t(x)F_t(x)$ sur un ensemble fini d'indices $x$, adapté à une filtration $(\cF_t)$. On suppose, presque sûrement :
+\begin{enumerate}[label=(\roman*)]
+\item $0\le\alpha_t(x)\le1$, $\sum_t\alpha_t(x)=\infty$, $\sum_t\alpha_t(x)^2<\infty$ ;
+\item $\ninf{\E[F_t\mid\cF_t]}\le\kappa\ninf{\Delta_t}$ pour une constante $\kappa<1$ ;
+\item $\mathrm{Var}(F_t(x)\mid\cF_t)\le C(1+\ninf{\Delta_t})^2$.
+\end{enumerate}
+Alors $\Delta_t\to0$ presque sûrement.
+\end{lemme}
+
+\paragraph{Application au Q-Learning.} Posons $\Delta_t=Q_t-Q^*$ et, pour $x=(s,a)$, $F_t(s,a)=r+\gamma\max_{a'}Q_t(s',a')-Q^*(s,a)$, où $(r,s')$ est issu d'une transition depuis $(s,a)$. La mise à jour $Q_{t+1}=Q_t+\alpha_t(y_t-Q_t)$ s'écrit, après soustraction de $Q^*$, exactement $\Delta_{t+1}=(1-\alpha_t)\Delta_t+\alpha_tF_t$. Vérifions les hypothèses.
+\begin{itemize}
+\item (i) est l'hypothèse du théorème.
+\item (ii) : d'après la \cref{prop-td} et la relation $Q^*=TQ^*$,
+\[
+\E[F_t(s,a)\mid\cF_t]=(TQ_t)(s,a)-Q^*(s,a)=(TQ_t)(s,a)-(TQ^*)(s,a),
+\]
+donc, par le \cref{thm-contraction}, $\ninf{\E[F_t\mid\cF_t]}\le\gamma\ninf{Q_t-Q^*}=\gamma\ninf{\Delta_t}$. \textbf{C'est ici qu'intervient la contraction de Bellman}, avec $\kappa=\gamma<1$.
+\item (iii) découle de \eqref{eq-var-bound}, puisque $\ninf{Q_t}\le\ninf{\Delta_t}+\ninf{Q^*}$.
+\end{itemize}
+
+\paragraph{Idée de la preuve du lemme (non détaillée).} On sépare $F_t$ en sa partie moyenne, contrôlée par la contraction (ii), et un bruit de martingale $F_t-\E[F_t\mid\cF_t]$. (1) On montre d'abord que $(\Delta_t)$ reste borné presque sûrement. (2) Le bruit, moyenné avec des poids satisfaisant Robbins-Monro, tend vers $0$ : c'est la généralisation à des martingales de la \cref{thm-rm}, qui utilise des théorèmes de convergence de martingales de carré intégrable. (3) La partie moyenne se comporte comme une itération de point fixe relaxée : si $\ninf{\Delta_t}\le D$ à partir d'un certain rang, alors, à bruit près, chaque coordonnée finit par entrer dans la boîte $[-\kappa' D,\kappa' D]$ avec $\kappa<\kappa'<1$, car chaque coordonnée est mise à jour infiniment souvent avec $\sum\alpha=\infty$. On obtient ainsi une suite de boîtes emboîtées $D_{k+1}=\kappa' D_k\to0$. Le détail des étapes (1) et (2) relève de la théorie des martingales et est hors du périmètre de ce projet.
+
+\paragraph{Ce que le théorème ne dit pas.}
+\begin{itemize}
+\item Il est \emph{asymptotique} : il ne donne aucune vitesse. Even-Dar et Mansour (2003) montrent que la vitesse dépend fortement du pas : avec $\alpha=1/N$, le nombre d'itérations nécessaires peut croître exponentiellement en $1/(1-\gamma)$, alors qu'avec $\alpha=1/N^\omega$, $\omega\in(1/2,1)$, la dépendance est polynomiale.
+\item Il porte sur la convergence de $Q_t$ vers $Q^*$, pas sur la qualité des actions jouées pendant l'apprentissage : avec $\varepsilon$ fixe, l'agent continue de jouer une action aléatoire une fois sur $1/\varepsilon$. Pour que la politique de comportement devienne elle-même optimale, il faut faire décroître $\varepsilon_t\to0$ assez lentement (politiques « GLIE », Singh et al., 2000).
+\item Il ne s'applique pas tel quel lorsque $Q$ est représentée par une fonction paramétrée (réseau de neurones) : la contraction en norme infinie est alors perdue en général (\cref{sec-perspectives}).
+\end{itemize}

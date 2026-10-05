@@ -1,0 +1,201 @@
+%=====================================================================
+\section{Processus de décision markoviens}\label{sec-mdp}
+%=====================================================================
+
+\subsection{Définition}
+
+Une chaîne de Markov décrit un système qui évolue seul. Un processus de décision markovien ajoute un décideur : la loi de l'état suivant dépend de l'état présent \emph{et} de l'action choisie.
+
+\begin{definition}[MDP fini]\label{def-mdp}
+Un processus de décision markovien fini est un quintuplet $\cM=(\cS,\cA,P,R,\gamma)$ où
+\begin{itemize}
+\item $\cS=\{s_1,\dots,s_n\}$ est un ensemble fini d'\emph{états} ;
+\item $\cA=\{a_1,\dots,a_m\}$ est un ensemble fini d'\emph{actions} ;
+\item $P$ est un \emph{noyau de transition} : pour tout $(s,a)$, $P(\cdot\mid s,a)$ est une loi de probabilité sur $\cS$, et $P(s'\mid s,a)$ est la probabilité d'arriver en $s'$ quand on joue $a$ en $s$ ;
+\item $R:\cS\times\cA\times\cS\to\R$ est la \emph{fonction de récompense} ; on note $\Rmax=\max\abs{R(s,a,s')}$ ;
+\item $\gamma\in[0,1)$ est le \emph{facteur d'actualisation}.
+\end{itemize}
+On note $r(s,a)=\sum_{s'}P(s'\mid s,a)R(s,a,s')$ la récompense moyenne immédiate.
+\end{definition}
+
+Pour chaque action $a$ fixée, la matrice $(P(s'\mid s,a))_{s,s'}$ est stochastique. Un MDP est donc une famille de $|\cA|$ chaînes de Markov entre lesquelles le décideur choisit à chaque pas.
+
+\subsection{Politiques}
+
+\begin{definition}[Politique]
+Une \emph{politique stationnaire markovienne} (on dira simplement \emph{politique}) est une famille $\pi=(\pi(\cdot\mid s))_{s\in\cS}$ de lois sur $\cA$ : $\pi(a\mid s)\in[0,1]$ est la probabilité de choisir $a$ dans l'état $s$, et $\sum_a\pi(a\mid s)=1$. Elle est \emph{déterministe} s'il existe une fonction, encore notée $\pi:\cS\to\cA$, telle que $\pi(a\mid s)=\1\{a=\pi(s)\}$. On note $\Pi$ l'ensemble des politiques et $\Pi_D$ celui des politiques déterministes ; $\Pi_D$ est fini de cardinal $|\cA|^{|\cS|}$.
+\end{definition}
+
+Plus généralement, une politique pourrait dépendre de tout l'historique $(s_0,a_0,\dots,s_t)$ et du temps. On se restreint à $\Pi$ ; la \cref{rem-histoire} explique pourquoi ce n'est pas une perte de généralité.
+
+\subsection{Loi des trajectoires et propriété de Markov}
+
+Fixons une politique $\pi$ et un état initial $s$. Le mécanisme est : $S_0=s$ ; à chaque instant $t$, l'action $A_t$ est tirée selon $\pi(\cdot\mid S_t)$, puis l'état suivant $S_{t+1}$ selon $P(\cdot\mid S_t,A_t)$, et l'on reçoit $R_{t+1}=R(S_t,A_t,S_{t+1})$. Formellement, les lois fini-dimensionnelles sont
+\begin{equation}\label{eq-loi-traj}
+\begin{split}
+&\P^\pi_s\big(S_0=s_0,A_0=a_0,\dots,S_t=s_t,A_t=a_t\big)\\
+&\qquad=\1\{s_0=s\}\prod_{k=0}^{t}\pi(a_k\mid s_k)\prod_{k=0}^{t-1}P(s_{k+1}\mid s_k,a_k).
+\end{split}
+\end{equation}
+Ces lois sont compatibles (sommer sur $a_t$ puis sur $s_t$ redonne la formule au rang précédent), et le théorème d'Ionescu-Tulcea garantit l'existence d'une unique probabilité $\P^\pi_s$ sur l'espace des trajectoires infinies qui les admet ; on l'admet. On note $\E^\pi_s$ l'espérance associée.
+
+\begin{proposition}\label{prop-chaine-induite}
+Sous $\P^\pi_s$, la suite des états $(S_t)$ est une chaîne de Markov de matrice
+\[
+P_\pi(s,s')=\sum_{a\in\cA}\pi(a\mid s)\,P(s'\mid s,a).
+\]
+\end{proposition}
+\begin{proof}
+En sommant \eqref{eq-loi-traj} sur $a_0,\dots,a_{t}$ (et en utilisant $\sum_{a_t}\pi(a_t\mid s_t)=1$), on obtient $\P^\pi_s(S_0=s_0,\dots,S_t=s_t)=\1\{s_0=s\}\prod_{k=0}^{t-1}P_\pi(s_k,s_{k+1})$. Le quotient de cette expression au rang $t+1$ par celle au rang $t$ vaut $P_\pi(s_t,s_{t+1})$ et ne dépend que de $s_t$ : c'est la propriété de Markov. La matrice $P_\pi$ est stochastique comme moyenne de matrices stochastiques.
+\end{proof}
+
+\paragraph{Pourquoi « markovien » ?} La loi de $(S_{t+1},R_{t+1})$ sachant tout le passé ne dépend que de $(S_t,A_t)$ : c'est l'hypothèse structurelle du modèle, visible dans \eqref{eq-loi-traj} où chaque facteur ne fait intervenir que l'état et l'action courants. C'est elle qui permettra la décomposition récursive de Bellman.
+
+Nous utiliserons la conséquence suivante de \eqref{eq-loi-traj}.
+
+\begin{lemme}[Redémarrage]\label{lem-redemarrage}
+Pour tous $s,a,s'$ tels que $\pi(a\mid s)P(s'\mid s,a)>0$, la loi de la trajectoire décalée $(S_1,A_1,S_2,A_2,\dots)$ sous $\P^\pi_s(\,\cdot\mid A_0=a,S_1=s')$ est $\P^\pi_{s'}$.
+\end{lemme}
+\begin{proof}
+D'après \eqref{eq-loi-traj}, pour toute suite $(s_1=s',a_1,\dots,s_{t},a_t)$,
+\[
+\begin{split}
+&\P^\pi_s(A_0=a,S_1=s',A_1=a_1,\dots,S_t=s_t,A_t=a_t)\\
+&\qquad=\pi(a\mid s)P(s'\mid s,a)\cdot\Big[\prod_{k=1}^{t}\pi(a_k\mid s_k)\prod_{k=1}^{t-1}P(s_{k+1}\mid s_k,a_k)\Big].
+\end{split}
+\]
+En divisant par $\P^\pi_s(A_0=a,S_1=s')=\pi(a\mid s)P(s'\mid s,a)$, il reste le crochet, qui est exactement \eqref{eq-loi-traj} pour une trajectoire issue de $s'$. Les lois fini-dimensionnelles coïncident, donc les lois coïncident.
+\end{proof}
+
+\subsection{Retour actualisé et rôle de \texorpdfstring{$\gamma$}{gamma}}
+
+\begin{definition}[Retour]
+Le retour actualisé à partir de l'instant $t$ est
+\[
+G_t=R_{t+1}+\gamma R_{t+2}+\gamma^2R_{t+3}+\dots=\sum_{k=0}^{\infty}\gamma^kR_{t+k+1}.
+\]
+\end{definition}
+
+\begin{proposition}[Bornitude du retour]\label{prop-borne-retour}
+Si $\abs{R_t}\le\Rmax$ pour tout $t$ et $0\le\gamma<1$, la série définissant $G_t$ converge absolument pour toute trajectoire et
+\[
+\abs{G_t}\le\frac{\Rmax}{1-\gamma}.
+\]
+\end{proposition}
+\begin{proof}
+$\sum_k\abs{\gamma^kR_{t+k+1}}\le\Rmax\sum_k\gamma^k=\Rmax/(1-\gamma)<\infty$ par la \cref{prop-geom}. La série converge absolument, donc converge, et par l'inégalité triangulaire (passée à la limite sur les sommes partielles) $\abs{G_t}\le\sum_k\gamma^k\abs{R_{t+k+1}}\le\Rmax/(1-\gamma)$.
+\end{proof}
+
+\begin{proposition}[Relation récursive]\label{prop-recursion}
+$G_t=R_{t+1}+\gamma G_{t+1}$.
+\end{proposition}
+\begin{proof}
+$G_t=R_{t+1}+\sum_{k\ge1}\gamma^kR_{t+k+1}=R_{t+1}+\gamma\sum_{j\ge0}\gamma^jR_{t+1+j+1}=R_{t+1}+\gamma G_{t+1}$, le réindexage $j=k-1$ étant licite pour une série absolument convergente.
+\end{proof}
+
+\paragraph{Pourquoi impose-t-on $\gamma<1$ ?} Trois raisons, de natures différentes, convergent.
+\begin{enumerate}
+\item \emph{Analytique.} Avec $\gamma=1$, la somme des récompenses peut diverger (récompenses $-1$ à chaque pas d'une politique qui tourne en rond indéfiniment), et $V^\pi$ n'est plus défini. Avec $\gamma<1$ et des récompenses bornées, tout est fini (\cref{prop-borne-retour}).
+\item \emph{Probabiliste.} Soit $\tau$ une variable géométrique indépendante de la trajectoire, $\P(\tau>k)=\gamma^k$ (à chaque pas, le processus « s'arrête » avec probabilité $1-\gamma$). Alors, pour des récompenses bornées, $\E\big[\sum_{k=0}^{\tau-1}R_{k+1}\big]=\E\big[\sum_{k\ge0}\1\{\tau>k\}R_{k+1}\big]=\E\big[\sum_k\gamma^kR_{k+1}\big]$ (indépendance et Fubini, justifié par la domination $\sum_k\gamma^k\Rmax$). Actualiser revient donc à maximiser la somme non actualisée sur un horizon aléatoire de durée moyenne $1/(1-\gamma)$ ; par exemple $1/(1-\gamma)=10$ pour $\gamma=0.9$ et $100$ pour $\gamma=0.99$.
+\item \emph{Algorithmique.} On verra que $\gamma$ est exactement le rapport de contraction de l'opérateur de Bellman (\cref{thm-contraction}). C'est $\gamma<1$ qui rend applicable le théorème de Banach.
+\end{enumerate}
+Plus $\gamma$ est proche de $0$, plus l'agent est « myope » ; plus il est proche de $1$, plus il valorise le long terme, au prix d'une convergence plus lente.
+
+%=====================================================================
+\section{Fonctions de valeur}\label{sec-valeurs}
+%=====================================================================
+
+\begin{definition}
+Pour une politique $\pi$, la \emph{fonction de valeur} et la \emph{fonction d'action-valeur} (fonction $Q$) sont
+\[
+V^\pi(s)=\E^\pi_s[G_0],\qquad
+Q^\pi(s,a)=\E^\pi_s[G_0\mid A_0=a]\quad(\text{si }\pi(a\mid s)>0).
+\]
+\end{definition}
+
+Comme $G_0$ est bornée, ces espérances existent. Par stationnarité, $V^\pi(s)$ est aussi l'espérance de $G_t$ sachant $S_t=s$ pour n'importe quel $t$, ce qui justifie la notation du cahier des charges $V^\pi(s)=\E_\pi[G_t\mid S_t=s]$.
+
+\paragraph{Interprétation.} $V^\pi(s)$ est la récompense totale actualisée moyenne obtenue en partant de $s$ et en suivant $\pi$. $Q^\pi(s,a)$ est la même quantité quand on impose la première action $a$ et qu'on suit $\pi$ ensuite : elle mesure la \emph{qualité} de l'action $a$ dans l'état $s$. La différence est essentielle pour la suite : connaître $V^\pi$ ne suffit pas pour choisir une action sans connaître le modèle $P$, alors que connaître $Q$ permet de choisir $\argmax_a Q(s,a)$ directement. C'est pour cela que le Q-Learning apprend $Q$ et non $V$.
+
+Pour que $Q^\pi(s,a)$ soit défini même lorsque $\pi(a\mid s)=0$, on pose directement
+\begin{equation}\label{eq-Q-from-V}
+\begin{split}
+Q^\pi(s,a)&=\sum_{s'}P(s'\mid s,a)\big[R(s,a,s')+\gamma V^\pi(s')\big]\\
+&=r(s,a)+\gamma\sum_{s'}P(s'\mid s,a)V^\pi(s'),
+\end{split}
+\end{equation}
+la \cref{prop-VQ} montrant que cela coïncide avec l'espérance conditionnelle lorsque $\pi(a\mid s)>0$.
+
+\begin{proposition}\label{prop-VQ}
+Pour toute politique $\pi$ et tout $s$ :
+\begin{enumerate}[label=(\alph*)]
+\item si $\pi(a\mid s)>0$, $\E^\pi_s[G_0\mid A_0=a]=\sum_{s'}P(s'\mid s,a)\big[R(s,a,s')+\gamma V^\pi(s')\big]$ ;
+\item $V^\pi(s)=\sum_a\pi(a\mid s)\,Q^\pi(s,a)$.
+\end{enumerate}
+\end{proposition}
+\begin{proof}
+(a) Par la \cref{prop-recursion}, $G_0=R_1+\gamma G_1$ avec $R_1=R(s,a,S_1)$ sur $\{A_0=a\}$. On conditionne par la valeur de $S_1$ (\cref{lem-totale}) :
+\[
+\E^\pi_s[G_0\mid A_0=a]=\sum_{s'}P(s'\mid s,a)\Big(R(s,a,s')+\gamma\,\E^\pi_s[G_1\mid A_0=a,S_1=s']\Big),
+\]
+car $\P^\pi_s(S_1=s'\mid A_0=a)=P(s'\mid s,a)$ d'après \eqref{eq-loi-traj}. Or $G_1=\sum_k\gamma^kR(S_{k+1},A_{k+1},S_{k+2})$ est la même fonction de la trajectoire décalée que $G_0$ de la trajectoire initiale. D'après le \cref{lem-redemarrage}, la trajectoire décalée a pour loi $\P^\pi_{s'}$, donc $\E^\pi_s[G_1\mid A_0=a,S_1=s']=\E^\pi_{s'}[G_0]=V^\pi(s')$. (Si $P(s'\mid s,a)=0$, le terme est nul et n'intervient pas.)
+
+(b) On conditionne $G_0$ par la valeur de $A_0$, de loi $\pi(\cdot\mid s)$ (\cref{lem-totale}), et on utilise (a) pour les $a$ tels que $\pi(a\mid s)>0$ ; les autres ont un poids nul.
+\end{proof}
+
+%=====================================================================
+\section{Équations de Bellman}\label{sec-bellman}
+%=====================================================================
+
+\subsection{Équation de Bellman pour une politique fixée}
+
+En combinant les deux points de la \cref{prop-VQ}, on obtient le résultat suivant.
+
+\begin{theoreme}[Équations de Bellman d'évaluation]\label{thm-bellman-pi}
+Pour toute politique $\pi$ et tous $s\in\cS$, $a\in\cA$,
+\begin{align}
+V^\pi(s)&=\sum_a\pi(a\mid s)\sum_{s'}P(s'\mid s,a)\big[R(s,a,s')+\gamma V^\pi(s')\big]
+=\E^\pi_s\big[R_1+\gamma V^\pi(S_1)\big],\label{eq-bellman-V}\\
+Q^\pi(s,a)&=\sum_{s'}P(s'\mid s,a)\Big[R(s,a,s')+\gamma\sum_{a'}\pi(a'\mid s')Q^\pi(s',a')\Big].\label{eq-bellman-Q}
+\end{align}
+\end{theoreme}
+\begin{proof}
+\eqref{eq-bellman-V} : injecter \eqref{eq-Q-from-V} dans la \cref{prop-VQ}(b). \eqref{eq-bellman-Q} : injecter la \cref{prop-VQ}(b), appliquée en $s'$, dans \eqref{eq-Q-from-V}.
+\end{proof}
+
+L'idée est simple : la valeur d'un état est la récompense immédiate moyenne plus $\gamma$ fois la valeur moyenne de l'état suivant. Le problème sur un horizon infini se ramène à un problème à un pas, grâce à la propriété de Markov.
+
+\paragraph{Forme matricielle et unicité.} Notons $r_\pi(s)=\sum_a\pi(a\mid s)r(s,a)$. L'équation \eqref{eq-bellman-V} s'écrit
+\[
+V^\pi=r_\pi+\gamma P_\pi V^\pi\iff(I-\gamma P_\pi)V^\pi=r_\pi.
+\]
+
+\begin{proposition}\label{prop-neumann}
+$I-\gamma P_\pi$ est inversible, et
+\[
+V^\pi=(I-\gamma P_\pi)^{-1}r_\pi=\sum_{k=0}^{\infty}\gamma^kP_\pi^k\,r_\pi.
+\]
+\end{proposition}
+\begin{proof}
+Pour la norme d'opérateur subordonnée à $\ninf\cdot$, $\norm{P_\pi}=\max_s\sum_{s'}P_\pi(s,s')=1$ car $P_\pi$ est stochastique (\cref{lem-moyenne}), donc $\norm{\gamma P_\pi}=\gamma<1$. La série de Neumann $\sum_k(\gamma P_\pi)^k$ converge alors normalement (\cref{prop-geom}), et un calcul télescopique montre que sa somme $N$ vérifie $(I-\gamma P_\pi)N=N(I-\gamma P_\pi)=I$.
+\end{proof}
+
+La formule a une lecture probabiliste immédiate : par Chapman-Kolmogorov (\cref{thm-ck,prop-chaine-induite}), $(P_\pi^kr_\pi)(s)=\E^\pi_s[r_\pi(S_k)]=\E^\pi_s[R_{k+1}]$ est la récompense moyenne reçue au pas $k+1$. Ainsi $V^\pi(s)=\sum_k\gamma^k\E^\pi_s[R_{k+1}]$ : la série des espérances. Le code utilise cette proposition pour évaluer exactement une politique (\texttt{evaluate\_policy\_exact}), en résolvant un système linéaire $14\times14$.
+
+\subsection{Équation d'optimalité de Bellman}
+
+\begin{definition}[Valeurs optimales]
+\[
+V^*(s)=\sup_{\pi\in\Pi}V^\pi(s),\qquad Q^*(s,a)=\sup_{\pi\in\Pi}Q^\pi(s,a).
+\]
+Une politique $\pi^*$ est \emph{optimale} si $V^{\pi^*}(s)=V^*(s)$ pour tout $s$.
+\end{definition}
+
+Ces bornes supérieures sont finies puisque $\abs{V^\pi}\le\Rmax/(1-\gamma)$. A priori, rien ne dit qu'une même politique réalise le $\sup$ simultanément en tous les états. L'heuristique de Bellman (principe d'optimalité) suggère pourtant que, si l'on agit optimalement à partir du pas suivant, il suffit de choisir au pas présent l'action qui maximise « récompense immédiate $+\ \gamma\times$ valeur optimale de l'état suivant ». Cela conduit à l'\emph{équation d'optimalité}
+\begin{equation}\label{eq-bellman-opt}
+\begin{split}
+Q^*(s,a)&=\sum_{s'}P(s'\mid s,a)\Big[R(s,a,s')+\gamma\max_{a'}Q^*(s',a')\Big]\\
+&=\E\Big[R_{t+1}+\gamma\max_{a'}Q^*(S_{t+1},a')\;\Big|\;S_t=s,A_t=a\Big].
+\end{split}
+\end{equation}
+Cette équation est non linéaire à cause du $\max$ : on ne peut plus la résoudre par inversion de matrice. La section suivante démontre rigoureusement qu'elle a une unique solution, que cette solution est bien $Q^*$, et qu'une politique gloutonne pour $Q^*$ est optimale. L'outil sera le théorème de Banach.

@@ -1,0 +1,268 @@
+%=====================================================================
+\section{Expériences numériques}\label{sec-experiences}
+%=====================================================================
+
+Toutes les valeurs numériques de cette section sont produites par les scripts du dossier \texttt{experiments/} et insérées automatiquement dans le texte par \texttt{report/make\_results.py} ; aucune n'a été recopiée à la main. Les graines aléatoires sont fixées (graines $0$ à $19$ pour l'expérience principale, $0$ à $9$ pour les balayages de paramètres), et chaque courbe est une moyenne sur ces graines, avec une bande entre les quantiles $10\,\%$ et $90\,\%$.
+
+\FloatBarrier
+\subsection{Environnement}
+
+\begin{figure}[ht]
+\centering
+\begin{subfigure}[t]{0.42\linewidth}\centering
+\includegraphics[width=0.85\linewidth]{fig1_gridworld.pdf}
+\caption{Environnement : départ $S$, objectif $G$, obstacles $X$, numérotation des 14 états.}
+\end{subfigure}\hfill
+\begin{subfigure}[t]{0.52\linewidth}\centering
+\includegraphics[width=0.75\linewidth]{fig2_optimal_policy.pdf}
+\caption{$V^*(s)=\max_aQ^*(s,a)$ (valeur et couleur) et politique gloutonne pour $Q^*$, calculées par Value Iteration.}
+\end{subfigure}
+\caption{Figures 1 et 2 du cahier des charges : le GridWorld et sa politique optimale ($\gamma=0.9$).}
+\label{fig-env}
+\end{figure}
+
+Le GridWorld est une grille $4\times4$ (\cref{fig-env}). Les deux obstacles ne sont pas des états : $\cS$ compte $14$ états, dont l'objectif $G$, absorbant. Les actions sont $\cA=\{\text{haut},\text{bas},\text{gauche},\text{droite}\}$. Pour que le problème soit réellement stochastique (et que le rôle du taux d'apprentissage soit visible), la dynamique est « glissante » : l'action demandée est exécutée avec probabilité $0.8$, et l'agent part dans chacune des deux directions perpendiculaires avec probabilité $0.1$. Si la direction réalisée mène hors de la grille ou dans un obstacle, l'agent reste sur place. Les récompenses sont
+\[
+R(s,a,s')=\begin{cases}+10&\text{si }s'=G,\\-5&\text{si }s'=s\ \text{(collision avec un bord ou un obstacle)},\\-1&\text{sinon (déplacement)},\end{cases}
+\]
+et $R(G,a,G)=0$. La pénalité de collision s'applique donc aussi aux bords, ce qui rend $R$ fonction de $(s,s')$ seulement et bien définie. On a $\Rmax=10$, donc $\abs{Q^*}\le\Rmax/(1-\gamma)=\ReturnBound$ d'après la \cref{prop-borne-retour} ; numériquement $\ninf{Q^*}=\QstarSup$, bien en dessous de cette borne de pire cas. Les épisodes partent de $S$ (sauf mention contraire) et s'arrêtent en $G$ ou après $200$ pas. Le code de l'environnement construit explicitement les tableaux $P[s,a,s']$ et $R[s,a,s']$ et vérifie que chaque $P(\cdot\mid s,a)$ est une loi de probabilité.
+
+\FloatBarrier
+\subsection{Value Iteration et vérification de la théorie}\label{sec-exp-vi}
+
+\paragraph{Calcul de $Q^*$.} Avec $\gamma=0.9$, $Q_0=0$ et le critère d'arrêt $\ninf{Q_{k+1}-Q_k}<10^{-8}$, Value Iteration s'arrête après $\VIIters$ itérations, avec un dernier incrément $\VILastInc$. L'estimation a posteriori (\cref{thm-vi}) garantit alors $\ninf{Q_k-Q^*}\le\frac{\gamma}{1-\gamma}\times\VILastInc=\VIAPost$ ; l'erreur réelle, mesurée par rapport à une solution calculée avec une tolérance de $10^{-13}$, vaut $\VITrueErr$, ce qui respecte la garantie. Le \cref{tab-qstar} donne $Q^*$ et la \cref{fig-env} la politique optimale. On a $V^*(S)=\VstarS$.
+
+\begin{table}[ht]
+\centering
+\small
+\resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{\begin{tabular}{lrrrrr}
+\toprule
+case & haut & bas & gauche & droite & $V^*(s)$\\
+\midrule
+\TableQstar
+\bottomrule
+\end{tabular}}
+\caption{Fonction $Q^*$ ($\gamma=0.9$) ; en gras les actions optimales. $Q^*(G,\cdot)=0$.}
+\label{tab-qstar}
+\end{table}
+
+\paragraph{Lecture de la politique.} Le problème est symétrique par rapport à la diagonale (les obstacles sont sur la diagonale) : en $S$, « bas » et « droite » sont toutes deux optimales, avec la même valeur. Ailleurs l'action optimale est unique. La politique n'est pas un simple « plus court chemin » : en $(0,2)$ par exemple, aller vers le bas ($Q^*=1.291$) est préféré à aller vers le coin $(0,3)$ ($Q^*=1.103$). Les deux chemins ont la même longueur, mais les risques de collision dus au glissement diffèrent, et l'espérance dans $T$ en tient compte. Le plus petit écart d'action vaut $\Delta=\ActionGap$ (\cref{prop-perte}).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{fig_vi_convergence_contraction.pdf}
+\caption{À gauche : convergence de Value Iteration, comparée à la borne de Banach $\gamma^k\ninf{Q_0-Q^*}$. À droite : distribution du rapport $\ninf{TQ_1-TQ_2}/\ninf{Q_1-Q_2}$ pour $20\,000$ couples aléatoires et chaque $\gamma$ ; le trait rouge marque $\gamma$.}
+\label{fig-vi}
+\end{figure}
+
+\paragraph{Vitesse de convergence.} La \cref{fig-vi} (gauche) montre que l'erreur reste toujours sous la borne $\gamma^k\ninf{Q_0-Q^*}$, comme le garantit le \cref{thm-vi}, mais qu'elle décroît beaucoup plus vite. La borne a priori $\gamma^k\ninf{Q_0-Q^*}\le10^{-8}$ demande $\VIBoundIters$ itérations ; il en a fallu $\VIIters$ pour que le critère d'arrêt soit atteint, avec une erreur réelle de $\VITrueErr$. Comme expliqué en \cref{sec-vi}, le rapport entre deux erreurs successives tend vers $\VIRatioLast$, qui coïncide avec $\gamma\rho=\AsymptoticRate$, où $\rho=\SpectralRho$ est le rayon spectral de $P_{\pi^*}$ restreinte aux états non terminaux.
+
+\paragraph{Contraction.} La \cref{fig-vi} (droite) vérifie le \cref{thm-contraction} : pour chaque $\gamma$, aucun des $20\,000$ rapports n'a dépassé $\gamma$, et le cas d'égalité $Q_2=Q_1+c\1$ atteint exactement $\gamma$.
+
+\paragraph{Politiques gloutonnes approchées.} Pour illustrer la \cref{prop-perte}, on a perturbé $Q^*$ par un bruit uniforme sur $[-\varepsilon,\varepsilon]$ ($2\,000$ tirages) et évalué exactement la politique gloutonne obtenue. Pour $\varepsilon=0.05<\Delta/2$, la perte maximale observée est $\LossEpsSmall$ : la politique reste optimale, comme prévu. Pour $\varepsilon=1$, la pire perte observée est $\LossEpsOne$, très en dessous de la borne $2\varepsilon/(1-\gamma)=\LossBoundOne$ ; pour $\varepsilon=2$, elle atteint $\LossEpsTwo$ (borne $\LossBoundTwo$). La borne est valide mais pessimiste.
+
+\FloatBarrier
+\subsection{Q-Learning : convergence de \texorpdfstring{$Q_t$}{Qt} vers \texorpdfstring{$Q^*$}{Q*}}\label{sec-exp-main}
+
+\paragraph{Protocole.} $\gamma=0.9$, $\varepsilon=0.1$, $Q_0=0$, $\alpha_t=1/N_t(s,a)^{0.8}$ (qui vérifie Robbins-Monro), $100\,000$ épisodes, $\MainANSeeds$ graines. Toutes les $50$ épisodes on enregistre $E_t=\ninf{Q_t-Q^*}$ (sur les paires non terminales), l'erreur moyenne $\frac{1}{|\cS\setminus\{G\}||\cA|}\sum_{s,a}\abs{Q_t-Q^*}$, l'erreur à l'état de départ $\max_a\abs{Q_t(S,a)-Q^*(S,a)}$, la proportion d'états où l'action gloutonne est optimale, et la valeur exacte $V^{\pi_t}(S)$ de la politique gloutonne $\pi_t$. On compare deux réglages :
+\begin{itemize}
+\item \textbf{(A) départ fixe en $S$}, comme dans le cahier des charges ;
+\item \textbf{(B) départs aléatoires} : chaque épisode part d'un état non terminal tiré uniformément. L'hypothèse de visite infinie est alors satisfaite de façon beaucoup plus homogène.
+\end{itemize}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{fig3_error_convergence.pdf}
+\caption{Figure 3 du cahier des charges : $E_t=\ninf{Q_t-Q^*}$ en fonction du nombre d'épisodes (échelles logarithmiques), avec l'erreur moyenne et l'erreur à l'état de départ.}
+\label{fig-main-error}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\small
+\resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{\begin{tabular}{r|rrrr|rrrr}
+\toprule
+& \multicolumn{4}{c|}{(A) départ fixe} & \multicolumn{4}{c}{(B) départs aléatoires}\\
+épisode & $E_t$ moy. & $E_t$ méd. & err. moy. & \% opt. & $E_t$ moy. & $E_t$ méd. & err. moy. & \% opt.\\
+\midrule
+\TableMain
+\bottomrule
+\end{tabular}}
+\caption{Erreurs de Q-Learning ($20$ graines). « \% opt. » : proportion d'états non terminaux où l'action gloutonne pour $Q_t$ est optimale.}
+\label{tab-main}
+\end{table}
+
+\paragraph{Résultat principal : on observe $Q_t\to Q^*$.} Dans le réglage (B), l'erreur uniforme décroît régulièrement de $\MainBErrHundred$ (épisode $100$) à $\MainBErrFinal$ (épisode $100\,000$), et l'erreur moyenne atteint $\MainBMeanErrFinal$ (\cref{fig-main-error}, \cref{tab-main}). Toutes les graines finissent avec une erreur comprise entre $\MainBErrMin$ et $\MainBErrMax$, et la politique gloutonne est optimale dans tous les états pour les $\MainBStab$ graines (médiane de l'épisode de stabilisation : $\MainBStabMedian$). C'est la confirmation expérimentale du \cref{thm-ql}. On remarque que l'erreur uniforme finale reste supérieure à $\Delta/2=\ActionGapHalf$ : la \cref{prop-perte} ne suffit donc pas à garantir l'optimalité de la politique gloutonne, qui est pourtant observée. La borne est un pire cas ; en pratique, l'erreur est concentrée sur des paires dont l'action n'est pas en compétition serrée avec l'action optimale.
+
+\paragraph{Vitesse.} En coordonnées log-log, la pente de $E_t$ sur la fin de l'apprentissage vaut $\MainBSlope$ dans le réglage (B) : l'erreur décroît approximativement comme une puissance du nombre d'épisodes, beaucoup plus lentement que la décroissance géométrique de Value Iteration. C'est le prix de l'absence de modèle : il faut moyenner le bruit des transitions, et pour une moyenne empirique l'écart-type décroît en $n^{-1/2}$ (\cref{prop-rm-inv}).
+
+\paragraph{Le rôle des visites : réglage (A).} Avec un départ toujours en $S$, l'erreur moyenne et l'erreur en $S$ décroissent bien ($\MainAMeanErrFinal$ et $\MainAStartErrFinal$ à la fin), mais l'erreur uniforme reste élevée en moyenne ($\MainAErrFinal$, médiane $\MainAErrFinalMedian$) avec une très grande dispersion entre graines (de $\MainAErrMin$ à $\MainAErrMax$). L'explication est donnée par le nombre de visites (\cref{fig-snapshots}) : la paire la moins visitée ne l'est en moyenne que $\MainAVisitsMin$ fois contre $\MainAVisitsMax$ pour la plus visitée, soit un rapport de $\MainAVisitsRatio$. Sur l'ensemble des paires et des graines, la corrélation entre $\log(N(s,a)+1)$ et $\log\abs{Q_t-Q^*}(s,a)$ vaut $\MainACorr$ : les paires peu visitées sont celles qui sont mal estimées. Dans $\MainAArgmaxFar$ graines sur $20$, le maximum de l'erreur se situe dans une case de bord éloignée de la trajectoire suivie ($(0,2)$, $(0,3)$, $(2,0)$ ou $(3,0)$).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.92\linewidth]{fig_snapshots_visits.pdf}
+\caption{Graine $0$, réglage (A) : $\max_aQ_t(s,a)$ et action gloutonne après $10$, $100$, $1\,000$, $10\,000$ et $100\,000$ épisodes ; dernier panneau : nombre de visites par état (en $\log_{10}$, moyenne sur 20 graines).}
+\label{fig-snapshots}
+\end{figure}
+
+La \cref{fig-snapshots} montre un phénomène instructif. Comme « bas » et « droite » sont équivalentes en $S$, la graine $0$ s'est engagée sur le chemin passant par la colonne de gauche. Les cases de la partie droite de la grille sont alors rarement visitées, et la politique gloutonne y reste fausse même après $100\,000$ épisodes. Ce n'est pas une contradiction avec le \cref{thm-ql} : ces paires sont visitées infiniment souvent (grâce à $\varepsilon>0$ et au glissement), mais si rarement que la convergence, garantie à l'infini, n'est pas encore visible. Cette politique reste quasi optimale \emph{depuis $S$} : en moyenne $V^{\pi_t}(S)=\MainAGreedyValue$ contre $V^*(S)=\VstarS$, puisque les états mal estimés sont précisément ceux où l'agent ne va pas.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\linewidth]{fig4_reward_learning.pdf}
+\caption{Figure 4 du cahier des charges, réglage (A) : récompense totale et longueur des épisodes pendant l'apprentissage (moyenne mobile sur 100 épisodes), proportion d'actions gloutonnes optimales, valeur exacte de la politique gloutonne depuis $S$.}
+\label{fig-reward}
+\end{figure}
+
+\paragraph{Récompense et longueur des épisodes.} La \cref{fig-reward} montre l'apprentissage du point de vue de l'agent : la récompense par épisode augmente et la longueur des épisodes diminue jusqu'à se stabiliser (sur les $1\,000$ derniers épisodes : récompense moyenne $\MainAAvgReturn$, longueur moyenne $\MainAAvgLength$ pas). Ces grandeurs se stabilisent bien avant $E_t$ : la performance de l'agent dépend de la qualité de $Q$ sur les paires qu'il visite, pas sur toutes les paires. Elles incluent aussi le coût de l'exploration ($10\,\%$ d'actions aléatoires), si bien qu'elles restent inférieures à la performance de la politique gloutonne.
+
+\FloatBarrier
+\subsection{Influence de \texorpdfstring{$\gamma$}{gamma}}\label{sec-exp-gamma}
+
+Protocole : réglage (B), $\varepsilon=0.1$, $\alpha_t=1/N_t^{0.8}$, $50\,000$ épisodes, $10$ graines ; pour chaque $\gamma$, $Q^*_\gamma$ est recalculé par Value Iteration. Comme $\ninf{Q^*_\gamma}$ dépend de $\gamma$, on compare des erreurs relatives $\ninf{Q_t-Q^*_\gamma}/\ninf{Q^*_\gamma}$.
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{\begin{tabular}{rrrrrrrrrrr}
+\toprule
+$\gamma$ & $\frac{1}{1-\gamma}$ & VI (itér.) & borne & $\gamma\rho$ & $\ninf{Q^*_\gamma}$ & $V^*_\gamma(S)$ & $E_{1000}$ & $E_{50000}$ & relative & stab. (méd.)\\
+\midrule
+\TableGamma
+\bottomrule
+\end{tabular}}
+\caption{Influence de $\gamma$. « VI » : itérations de Value Iteration pour $\ninf{Q_{k+1}-Q_k}<10^{-8}$ ; « borne » : plus petit $k$ tel que $\gamma^k\ninf{Q_0-Q^*_\gamma}\le10^{-8}$ (nombre d'itérations qui garantit a priori une erreur $10^{-8}$) ; $E_n$ : erreur $\ninf{Q_t-Q^*_\gamma}$ du Q-Learning après $n$ épisodes ; « relative » : $E_{50000}/\ninf{Q^*_\gamma}$ ; dernière colonne : médiane de l'épisode à partir duquel la politique gloutonne reste optimale.}
+\label{tab-gamma}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{fig5_gamma.pdf}
+\caption{Figure 5 du cahier des charges. À gauche : erreur relative du Q-Learning. À droite : Value Iteration pour chaque $\gamma$ (pointillés : borne $\gamma^k\ninf{Q_0-Q^*}$).}
+\label{fig-gamma}
+\end{figure}
+
+\paragraph{Value Iteration.} La théorie prédit une convergence en $\gamma^k$ : le nombre d'itérations garanti par la borne explose quand $\gamma\to1$ (de $\GammaBoundLow$ pour $\gamma=0.5$ à $\GammaBoundHigh$ pour $\gamma=0.99$, \cref{tab-gamma}). Le nombre réel d'itérations augmente aussi, de $\GammaVIItersLow$ à $\GammaVIItersHigh$, mais beaucoup moins, parce que le taux effectif est $\gamma\rho$ et non $\gamma$ : l'absorption en $G$ borne l'horizon réel des trajectoires optimales, quel que soit $\gamma$.
+
+\paragraph{Q-Learning.} Au début de l'apprentissage, l'erreur relative est d'autant plus grande que $\gamma$ est grand ($\GammaRelThousandLow$ pour $\gamma=0.5$ contre $\GammaRelThousandHigh$ pour $\gamma=0.99$ après $1\,000$ épisodes), et la politique se stabilise plus tôt pour les petits $\gamma$ (médiane $\GammaStabLow$ épisodes pour $\gamma=0.5$ contre $\GammaStabHigh$ pour $\gamma=0.95$ ; avec $\GammaStabHighest$ pour $\gamma=0.99$, la tendance n'est pas strictement monotone sur $10$ graines). Avec un $\gamma$ grand, la cible $r+\gamma\max Q(s',\cdot)$ dépend fortement d'estimations elles-mêmes encore fausses, et l'information sur la récompense finale doit se propager sur un horizon plus long. Après $50\,000$ épisodes, les erreurs relatives sont toutefois proches pour tous les $\gamma$ (entre $\GammaRelMin$ et $\GammaRelMax$) : dans ce petit environnement, l'effet de $\gamma$ sur la vitesse du Q-Learning reste modéré.
+
+\paragraph{Politique obtenue.} Les ensembles d'actions optimales sont identiques pour les cinq valeurs de $\gamma$ testées (\cref{fig-gamma-pol}). C'est une propriété de cet environnement, pas un fait général : ici l'objectif est proche et toutes les politiques raisonnables l'atteignent en peu de pas. En revanche les valeurs changent. $V^*_\gamma(S)$ n'est pas monotone en $\gamma$ : pour $\gamma$ petit, la récompense $+10$, lointaine, est fortement actualisée ; pour $\gamma$ grand, elle compte davantage, mais les coûts de $-1$ par pas aussi. C'est l'effet « poids des récompenses futures » attendu.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{fig5b_gamma_policies.pdf}
+\caption{$V^*_\gamma$ et une politique optimale pour chaque $\gamma$ (en $S$, les deux actions optimales sont équivalentes et l'affichage en choisit une).}
+\label{fig-gamma-pol}
+\end{figure}
+
+\FloatBarrier
+\subsection{Influence de \texorpdfstring{$\alpha$}{alpha}}\label{sec-exp-alpha}
+
+\paragraph{Cas scalaire.} Avant le Q-Learning, on vérifie numériquement l'analyse de la \cref{sec-rm}. On estime la moyenne $m=\ScMean$ de la loi de la récompense obtenue en jouant « bas » en $(2,3)$ ($+10$, $-1$, $-5$ avec probabilités $0.8$, $0.1$, $0.1$ ; variance $\sigma^2=\ScVar$) par le schéma \eqref{eq-rm-scalaire}, avec $x_0=-20$, sur $\ScN$ pas et $\ScRuns$ répétitions.
+
+\begin{table}[ht]
+\centering
+\small
+\resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{\begin{tabular}{lrrrrr}
+\toprule
+pas $\alpha_n$ & $\sum_{n\le N}\alpha_n$ & $\sum_{n\le N}\alpha_n^2$ & $\E[(x_n-m)^2]$ final & moy. sur $n\ge10^4$ & théorie\\
+\midrule
+\TableScalar
+\bottomrule
+\end{tabular}}
+\caption{Robbins-Monro scalaire ($N=\ScN$ pas, $\ScRuns$ répétitions ; les sommes sont partielles, jusqu'à $N$). Théorie : $\alpha\sigma^2/(2-\alpha)$ pour un pas constant (\cref{prop-rm-const}), $\sigma^2/n$ pour $1/n$ (\cref{prop-rm-inv}), convergence vers $0$ pour $1/n^{0.8}$ (\cref{thm-rm}).}
+\label{tab-scalar}
+\end{table}
+
+Le \cref{tab-scalar} et la \cref{fig-alpha} (droite) confirment les trois propositions. Avec un pas constant, l'erreur quadratique se stabilise au niveau prédit $\alpha\sigma^2/(2-\alpha)$ : en moyenne sur la seconde moitié des pas, $\ScOneTail$ pour $\alpha=0.1$ (théorie $\ScTheoOne$) et $\ScFiveTail$ pour $\alpha=0.5$ (théorie $\ScTheoFive$). Avec $1/n$, elle vaut $\sigma^2/n$. Avec $1/n^2$ ($\sum\alpha_n<\infty$), l'estimateur se fige : comme $\alpha_1=1$, la condition initiale est effacée au premier pas, mais $x_n$ converge vers une moyenne pondérée d'un petit nombre d'observations, dont la variance ne tend pas vers $0$ ; c'est l'autre visage de la \cref{prop-rm-sommable} (la limite existe mais elle est aléatoire et différente de $m$).
+
+\paragraph{Q-Learning.} Protocole : réglage (B), $\gamma=0.9$, $\varepsilon=0.1$, $50\,000$ épisodes, $10$ graines.
+
+\begin{table}[ht]
+\centering
+\small
+\resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{\begin{tabular}{lcrrrrrrr}
+\toprule
+pas & RM & $E_{1000}$ & $E_{10000}$ & $E_{50000}$ & err. moy. & fluct. & \% opt. & stab.\\
+\midrule
+\TableAlpha
+\bottomrule
+\end{tabular}}
+\caption{Influence du taux d'apprentissage. « RM » : conditions de Robbins-Monro vérifiées ; $E_n=\ninf{Q_t-Q^*}$ après $n$ épisodes ; « fluct. » : écart-type de $E_t$ au cours du temps sur la seconde moitié de l'apprentissage (moyenne sur les graines) ; « stab. » : nombre de graines dont la politique gloutonne est optimale et stable à la fin.}
+\label{tab-alpha}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{fig6_alpha.pdf}
+\caption{Figure 6 du cahier des charges. Gauche et centre : erreurs du Q-Learning pour différents taux d'apprentissage. Droite : schéma de Robbins-Monro scalaire (pointillés : variances stationnaires théoriques $\alpha\sigma^2/(2-\alpha)$ pour $\alpha=0.1$ et $0.5$).}
+\label{fig-alpha}
+\end{figure}
+
+Les résultats (\cref{tab-alpha}, \cref{fig-alpha}) reproduisent dans le Q-Learning ce que l'analyse scalaire prévoit.
+\begin{itemize}
+\item \textbf{Pas constants.} Aucun ne converge. Avec $\alpha=0.9$ ou $0.5$, $Q_t$ suit presque entièrement la dernière transition observée : l'erreur reste élevée ($\AlphaNineFinal$ et $\AlphaFiveFinal$ en fin d'apprentissage) et fluctue fortement (écart-type temporel $\AlphaNineStd$ et $\AlphaFiveStd$). Avec $\alpha=0.1$, l'erreur descend vite au début (c'est le meilleur réglage à $1\,000$ épisodes, $\AlphaOneThousand$), puis plafonne autour de $\AlphaOneFinal$, avec une fluctuation résiduelle : c'est le plancher de bruit de la \cref{prop-rm-const}.
+\item \textbf{$\alpha_t=1/N_t(s,a)$.} Les conditions de Robbins-Monro sont satisfaites et les fluctuations sont faibles, mais la convergence est lente ($\AlphaInvFinal$ à $50\,000$ épisodes). Le pas $1/N$ fait de $Q_t(s,a)$ une moyenne de cibles calculées avec des estimations anciennes, très fausses au début ; leur poids ne décroît qu'en $1/N$. C'est le phénomène analysé par Even-Dar et Mansour (2003).
+\item \textbf{$\alpha_t=1/N_t(s,a)^{0.8}$.} C'est le meilleur compromis : Robbins-Monro est satisfait, les anciennes cibles sont oubliées plus vite qu'avec $1/N$, et l'erreur atteint $\AlphaPolyFinal$ à $50\,000$ épisodes, avec la plus faible fluctuation ($\AlphaPolyStd$).
+\end{itemize}
+En résumé, la condition $\sum\alpha^2<\infty$ explique pourquoi les pas constants plafonnent, et la condition $\sum\alpha=\infty$ seule ne dit rien de la vitesse : deux suites qui vérifient Robbins-Monro peuvent avoir des comportements pratiques très différents.
+
+\FloatBarrier
+\subsection{Influence de \texorpdfstring{$\varepsilon$}{epsilon}}\label{sec-exp-eps}
+
+Protocole : réglage (A) (départ fixe, de sorte que l'exploration ne vient que de la politique), $\gamma=0.9$, $\alpha_t=1/N_t^{0.8}$, $Q_0=0$, $50\,000$ épisodes, $10$ graines.
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{\begin{tabular}{rrrrrrrrr}
+\toprule
+$\varepsilon$ & $E_{50000}$ & err. en $S$ & $V^{\pi_t}(S)$ & opt. depuis $S$ & \% opt. & récomp. moy. & paires jamais vues & visites min.\\
+\midrule
+\TableEps
+\bottomrule
+\end{tabular}}
+\caption{Influence de $\varepsilon$ ($V^*(S)=\EpsVstar$). « opt.\ depuis $S$ » : nombre de graines dont la politique gloutonne finale a la valeur optimale en $S$ ; « récomp. moy. » : récompense moyenne par épisode \emph{pendant} l'apprentissage ; « paires jamais vues » et « visites min. » : moyennes sur les graines.}
+\label{tab-eps}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{fig7_epsilon.pdf}
+\caption{Figure 7 du cahier des charges : influence de $\varepsilon$ sur l'erreur, sur la valeur de la politique gloutonne et sur la récompense obtenue pendant l'apprentissage.}
+\label{fig-eps}
+\end{figure}
+
+\paragraph{Sans exploration ($\varepsilon=0$), l'apprentissage se fige.} Avec $\varepsilon=0$, l'erreur $E_t$ vaut $\EpsZeroErrHundred$ dès l'épisode $100$ et n'évolue plus du tout ensuite ($\EpsZeroErr$ à $50\,000$ épisodes). En moyenne $\EpsZeroNever$ paires ne sont jamais visitées (jusqu'à $\EpsZeroNeverMax$ pour une graine) : pour elles $\sum_t\alpha_t(s,a)=0$, et le \cref{thm-ql} ne s'applique pas. Surtout, seules $\EpsZeroOptS$ graines sur $10$ trouvent une politique optimale depuis $S$ ; la pire atteint $V^{\pi}(S)=\EpsZeroValueMin$ contre $\VstarS$. C'est exactement le scénario de la \cref{sec-exploration} : l'agent exploite trop tôt une estimation incorrecte et ne découvre jamais les actions meilleures. Le phénomène se produit malgré l'initialisation optimiste $Q_0=0$ (\cref{rem-optimisme}), qui pousse à essayer chaque action au moins une fois dans les états visités, mais ne force ni à les réessayer, ni à visiter les autres états.
+
+\paragraph{Plus d'exploration, meilleure estimation.} Quand $\varepsilon$ augmente, toutes les paires sont visitées, plus souvent (visites minimales moyennes : $\EpsFiveMinVisits$, $\EpsTenMinVisits$ puis $\EpsThirtyMinVisits$), et l'erreur finale diminue nettement : $\EpsFiveErr$, $\EpsTenErr$ puis $\EpsThirtyErr$. Avec $\varepsilon=0.3$, les $10$ graines trouvent la politique optimale depuis $S$ ($\EpsThirtyOptS/10$) et la politique gloutonne est optimale dans tous les états.
+
+\paragraph{Le prix de l'exploration.} La récompense moyenne obtenue \emph{pendant} l'apprentissage évolue en sens inverse : $\EpsZeroReturn$ pour $\varepsilon=0$, $\EpsTenReturn$ pour $\varepsilon=0.1$, $\EpsThirtyReturn$ pour $\varepsilon=0.3$ (\cref{fig-eps}, droite). Explorer coûte, puisqu'une action sur $1/\varepsilon$ est aléatoire, alors qu'exploiter rapporte immédiatement mais empêche d'apprendre. C'est le compromis exploration contre exploitation, observé ici quantitativement : le meilleur $\varepsilon$ pour \emph{apprendre} $Q^*$ n'est pas le meilleur pour \emph{agir} pendant l'apprentissage. Une décroissance progressive de $\varepsilon_t$ permet de concilier les deux (\cref{sec-perspectives}).
+
+\paragraph{Exploitation pure avec une initialisation pessimiste.} Pour isoler l'effet de l'exploration de celui de l'initialisation optimiste, on reprend l'expérience avec $Q_0=\PessQZero=-\Rmax/(1-\gamma)$, valeur inférieure à tout $Q^*(s,a)$, sur $\PessEpisodes$ épisodes (\cref{tab-pess}, \cref{fig-pess}).
+
+\begin{table}[ht]
+\centering
+\small
+\resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{\begin{tabular}{rrrrrrrr}
+\toprule
+$\varepsilon$ & $E_t$ final & $V^{\pi_t}(S)$ & opt. depuis $S$ & \% opt. & paires jamais vues & récomp. moy. & épisodes tronqués\\
+\midrule
+\TablePess
+\bottomrule
+\end{tabular}}
+\caption{Initialisation pessimiste $Q_0=\PessQZero$, $\PessEpisodes$ épisodes, $10$ graines (« épisodes tronqués » : épisodes arrêtés à $200$ pas sans atteindre $G$, total sur les graines).}
+\label{tab-pess}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.85\linewidth]{fig7b_exploration_vs_exploitation.pdf}
+\caption{Exploration contre exploitation avec une initialisation pessimiste : $\varepsilon=0$ reste bloqué, $\varepsilon=0.1$ progresse.}
+\label{fig-pess}
+\end{figure}
+
+Avec $\varepsilon=0$, l'échec est complet. La première action essayée dans un état reçoit une valeur supérieure à $\PessQZero$ (par exemple, se cogner contre un mur mène vers $-5/(1-\gamma)=-50$), donc elle reste préférée à toutes les actions jamais essayées, qui gardent la valeur $\PessQZero$. L'agent tourne en rond : $\PessZeroTrunc$ épisodes sur $10\times\PessEpisodes$ sont tronqués à $200$ pas, la récompense moyenne par épisode vaut $\PessZeroReturn$, en moyenne $\PessZeroNever$ paires sur $52$ ne sont jamais visitées, et la politique gloutonne vaut en moyenne $V^{\pi_t}(S)=\PessZeroValue$ (contre $\VstarS$), sans aucune amélioration au cours du temps. Avec $\varepsilon=0.1$, la valeur de la politique gloutonne remonte à $\PessTenValue$ en $\PessEpisodes$ épisodes : l'exploration suffit à sortir de ces boucles, même si, sur cet horizon court, l'erreur uniforme reste dominée par les paires encore jamais visitées (en moyenne $\PessTenNever$), restées à leur valeur initiale. Cette expérience illustre directement la réponse attendue à la question du cahier des charges : un algorithme qui choisit toujours $\argmax_aQ(s,a)$ exploite une estimation incorrecte et peut ne jamais découvrir les actions meilleures.
+

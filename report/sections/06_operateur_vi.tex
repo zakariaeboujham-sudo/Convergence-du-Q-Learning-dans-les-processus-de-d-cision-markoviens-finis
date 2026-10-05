@@ -1,0 +1,173 @@
+%=====================================================================
+\section{Opérateur de Bellman et contraction}\label{sec-operateur}
+%=====================================================================
+
+\subsection{Définitions}
+
+On travaille dans l'espace $\mathcal{Q}=\R^{\cS\times\cA}$ des fonctions $Q:\cS\times\cA\to\R$, muni de la norme infinie. C'est un espace vectoriel de dimension finie $d=|\cS||\cA|$, complet d'après la \cref{prop-complet}.
+
+\begin{definition}[Opérateurs de Bellman]
+Pour $Q\in\mathcal{Q}$ et une politique $\pi$, on définit $TQ,\,T^\pi Q\in\mathcal Q$ par
+\begin{align*}
+(TQ)(s,a)&=\sum_{s'}P(s'\mid s,a)\Big[R(s,a,s')+\gamma\max_{a'}Q(s',a')\Big]\\
+&=r(s,a)+\gamma\sum_{s'}P(s'\mid s,a)\max_{a'}Q(s',a'),\\
+(T^\pi Q)(s,a)&=r(s,a)+\gamma\sum_{s'}P(s'\mid s,a)\sum_{a'}\pi(a'\mid s')\,Q(s',a').
+\end{align*}
+\end{definition}
+
+Avec ces notations, l'équation \eqref{eq-bellman-Q} s'écrit $T^\pi Q^\pi=Q^\pi$ et l'équation d'optimalité \eqref{eq-bellman-opt} s'écrit
+\[
+\boxed{TQ^*=Q^*}
+\]
+autrement dit : \emph{$Q^*$ est un point fixe de l'opérateur de Bellman}. Le problème de contrôle optimal devient un problème de point fixe.
+
+\subsection{Propriétés élémentaires}
+
+On note $Q_1\le Q_2$ si $Q_1(s,a)\le Q_2(s,a)$ pour tout $(s,a)$, et $\1$ la fonction constante égale à $1$.
+
+\begin{lemme}\label{lem-proprietes}
+Pour tous $Q,Q_1,Q_2\in\mathcal Q$, toute politique $\pi$ et toute constante $c\in\R$ :
+\begin{enumerate}[label=(\roman*)]
+\item \emph{monotonie} : $Q_1\le Q_2\Rightarrow TQ_1\le TQ_2$ et $T^\pi Q_1\le T^\pi Q_2$ ;
+\item \emph{translation} : $T(Q+c\1)=TQ+\gamma c\1$ et $T^\pi(Q+c\1)=T^\pi Q+\gamma c\1$ ;
+\item \emph{domination} : $T^\pi Q\le TQ$, avec égalité si $\pi$ est gloutonne pour $Q$, c'est-à-dire si $\pi(\cdot\mid s)$ ne charge que des actions de $\argmax_{a'}Q(s,a')$.
+\end{enumerate}
+\end{lemme}
+\begin{proof}
+(i) Si $Q_1\le Q_2$, alors $\max_{a'}Q_1(s',a')\le\max_{a'}Q_2(s',a')$ pour tout $s'$, et une combinaison à coefficients positifs préserve l'inégalité. Même raisonnement pour $T^\pi$. (ii) $\max_{a'}(Q(s',a')+c)=\max_{a'}Q(s',a')+c$ et $\sum_{s'}P(s'\mid s,a)\,c=c$. (iii) Une moyenne est inférieure au maximum : $\sum_{a'}\pi(a'\mid s')Q(s',a')\le\max_{a'}Q(s',a')$, avec égalité exactement quand $\pi(\cdot\mid s')$ est portée par les maximiseurs.
+\end{proof}
+
+\subsection{Le théorème de contraction}
+
+\begin{theoreme}[Contraction de l'opérateur de Bellman]\label{thm-contraction}
+Pour tous $Q_1,Q_2\in\mathcal Q$,
+\[
+\ninf{TQ_1-TQ_2}\le\gamma\,\ninf{Q_1-Q_2}\qquad\text{et}\qquad\ninf{T^\pi Q_1-T^\pi Q_2}\le\gamma\,\ninf{Q_1-Q_2}.
+\]
+Comme $0\le\gamma<1$, $T$ et $T^\pi$ sont des contractions de $(\mathcal Q,\ninf\cdot)$ de rapport $\gamma$.
+\end{theoreme}
+\begin{proof}
+Fixons $(s,a)$. Les récompenses $r(s,a)$ sont identiques dans $TQ_1$ et $TQ_2$ et disparaissent dans la différence :
+\[
+(TQ_1)(s,a)-(TQ_2)(s,a)=\gamma\sum_{s'}P(s'\mid s,a)\Big[\max_{a'}Q_1(s',a')-\max_{a'}Q_2(s',a')\Big].
+\]
+On prend la valeur absolue et on enchaîne trois inégalités.
+\begin{align*}
+\abs{(TQ_1)(s,a)-(TQ_2)(s,a)}
+&\le\gamma\sum_{s'}P(s'\mid s,a)\,\Big|\max_{a'}Q_1(s',a')-\max_{a'}Q_2(s',a')\Big| &&\text{(a)}\\
+&\le\gamma\sum_{s'}P(s'\mid s,a)\,\max_{a'}\abs{Q_1(s',a')-Q_2(s',a')} &&\text{(b)}\\
+&\le\gamma\sum_{s'}P(s'\mid s,a)\,\ninf{Q_1-Q_2} &&\text{(c)}\\
+&=\gamma\,\ninf{Q_1-Q_2} &&\text{(d)}
+\end{align*}
+Les justifications sont : (a) inégalité triangulaire et positivité des $P(s'\mid s,a)$ ; (b) \cref{lem-max} appliqué à $f=Q_1(s',\cdot)$ et $g=Q_2(s',\cdot)$ ; (c) définition de $\ninf\cdot$, puisque $\abs{Q_1(s',a')-Q_2(s',a')}\le\ninf{Q_1-Q_2}$ pour tout $(s',a')$ ; (d) $\sum_{s'}P(s'\mid s,a)=1$. Le membre de droite ne dépend pas de $(s,a)$ ; en prenant le maximum sur $(s,a)$ à gauche, on obtient l'inégalité annoncée. Pour $T^\pi$, on remplace la deuxième ligne par $\abs{\sum_{a'}\pi(a'\mid s')(Q_1-Q_2)(s',a')}\le\ninf{Q_1-Q_2}$ (\cref{lem-moyenne}).
+\end{proof}
+
+\paragraph{D'où vient le facteur $\gamma$ ?} La preuve montre que chaque ingrédient de $T$ joue un rôle précis : la récompense s'annule dans la différence, le $\max$ ne dilate pas les écarts (\cref{lem-max}), l'espérance sur $s'$ non plus (\cref{lem-moyenne}). La seule opération qui modifie l'écart est la multiplication par $\gamma$. Le rapport de contraction est donc exactement $\gamma$, sans dépendance au nombre d'états ni à la structure de $P$.
+
+\begin{remarque}[La constante $\gamma$ est optimale]
+Avec $Q_2=Q_1+c\1$, le \cref{lem-proprietes}(ii) donne $\ninf{TQ_2-TQ_1}=\gamma\abs c=\gamma\ninf{Q_2-Q_1}$ : on ne peut pas remplacer $\gamma$ par une constante plus petite. Numériquement (\cref{fig-vi}, à droite), sur $20\,000$ couples aléatoires par valeur de $\gamma$, le rapport $\ninf{TQ_1-TQ_2}/\ninf{Q_1-Q_2}$ n'a jamais dépassé $\gamma$ (maximum observé $\ContrMaxNine$ pour $\gamma=0.9$) et vaut $\ContrEqNine$ dans le cas d'égalité ; sa moyenne ($\ContrMeanNine$) est nettement plus faible, car pour des $Q$ quelconques le \cref{lem-max} est en général strict.
+\end{remarque}
+
+\subsection{Existence, unicité et caractérisation de \texorpdfstring{$Q^*$}{Q*}}
+
+\begin{theoreme}[Point fixe de Bellman et optimalité]\label{thm-optimalite}
+\begin{enumerate}[label=(\alph*)]
+\item Pour toute politique $\pi$, $Q^\pi$ est l'unique point fixe de $T^\pi$.
+\item $T$ possède un unique point fixe, noté $\bar Q$.
+\item Pour toute politique $\pi\in\Pi$, $Q^\pi\le\bar Q$.
+\item Toute politique déterministe gloutonne pour $\bar Q$, $\bar\pi(s)\in\argmax_a\bar Q(s,a)$, vérifie $Q^{\bar\pi}=\bar Q$.
+\end{enumerate}
+Par conséquent $Q^*=\bar Q$ : la fonction $Q^*$ définie comme borne supérieure est l'unique solution de l'équation d'optimalité $TQ=Q$, cette borne supérieure est atteinte simultanément en tous les $(s,a)$ par la politique déterministe $\bar\pi$, et l'on a $V^*(s)=\max_aQ^*(s,a)$ ; $\bar\pi$ est optimale.
+\end{theoreme}
+\begin{proof}
+(a) Par le \cref{thm-bellman-pi}, $T^\pi Q^\pi=Q^\pi$. Par le \cref{thm-contraction}, $T^\pi$ est une contraction de l'espace complet $\mathcal Q$ ; par le \cref{thm-banach}, son point fixe est unique.
+
+(b) Même argument pour $T$ (\cref{thm-contraction,thm-banach}).
+
+(c) Par (a) et le \cref{lem-proprietes}(iii), $Q^\pi=T^\pi Q^\pi\le TQ^\pi$. En appliquant $T$, qui est monotone (\cref{lem-proprietes}(i)), on obtient $TQ^\pi\le T^2Q^\pi$, puis par récurrence $Q^\pi\le TQ^\pi\le T^2Q^\pi\le\dots\le T^kQ^\pi$ pour tout $k$. D'après le \cref{thm-banach}(ii), $T^kQ^\pi\to\bar Q$ ; les inégalités larges passent à la limite coordonnée par coordonnée, d'où $Q^\pi\le\bar Q$.
+
+(d) Si $\bar\pi$ est gloutonne pour $\bar Q$, le \cref{lem-proprietes}(iii) donne $T^{\bar\pi}\bar Q=T\bar Q=\bar Q$. Donc $\bar Q$ est un point fixe de $T^{\bar\pi}$, et par l'unicité (a), $\bar Q=Q^{\bar\pi}$.
+
+\emph{Conclusion.} (c) donne $Q^*=\sup_\pi Q^\pi\le\bar Q$ et (d) donne $\bar Q=Q^{\bar\pi}\le Q^*$, donc $Q^*=\bar Q$ et le $\sup$ est atteint par $\bar\pi$. Pour les valeurs d'état, la \cref{prop-VQ}(b) et (c) donnent $V^\pi(s)=\sum_a\pi(a\mid s)Q^\pi(s,a)\le\max_a\bar Q(s,a)$, et pour $\bar\pi$ déterministe gloutonne $V^{\bar\pi}(s)=Q^{\bar\pi}(s,\bar\pi(s))=\bar Q(s,\bar\pi(s))=\max_a\bar Q(s,a)$. D'où $V^*(s)=\max_aQ^*(s,a)=V^{\bar\pi}(s)$.
+\end{proof}
+
+La chaîne logique centrale du projet est désormais établie :
+\[
+\boxed{\begin{array}{c}
+T\text{ contraction de rapport }\gamma\;\Longrightarrow\;\text{point fixe unique (Banach)}\\[2pt]
+\Longrightarrow\;\text{ce point fixe est }Q^*\;\Longrightarrow\;\pi^*(s)\in\argmax_aQ^*(s,a)\text{ est optimale.}
+\end{array}}
+\]
+
+\begin{remarque}[Politiques dépendant de l'historique]\label{rem-histoire}
+On s'est restreint aux politiques stationnaires markoviennes. Le résultat reste vrai si l'on autorise des politiques qui dépendent de tout l'historique et du temps, même randomisées : aucune ne fait mieux que $\bar\pi$ (Puterman, 1994, théorème 6.2.10). La preuve, plus technique, n'est pas reproduite ici.
+\end{remarque}
+
+\begin{remarque}[Vérifications numériques]
+Sur notre GridWorld (\cref{sec-experiences}), on a vérifié que l'évaluation exacte de la politique gloutonne pour $Q^*$ redonne $Q^*$ à $\NumGreedyMatch$ près (point (d)), et que, pour $\NumRandomPolicies$ politiques tirées au hasard (moitié déterministes, moitié stochastiques), $\max_{s,a}(Q^\pi-Q^*)(s,a)=\NumMaxQpiMinusQstar$, c'est-à-dire zéro aux erreurs d'arrondi près (point (c)). La meilleure de ces politiques aléatoires n'atteint que $V^\pi(S)=\NumBestRandom$ contre $V^*(S)=\VstarS$.
+\end{remarque}
+
+\subsection{Qualité d'une politique gloutonne approchée}
+
+En pratique on ne dispose que d'une approximation $Q\approx Q^*$. Le résultat suivant, dans l'esprit de Singh et Yee (1994), contrôle la perte.
+
+\begin{proposition}\label{prop-perte}
+Soit $Q\in\mathcal Q$ avec $\ninf{Q-Q^*}\le\varepsilon$ et $\pi$ une politique déterministe gloutonne pour $Q$. Alors
+\[
+0\le V^*(s)-V^{\pi}(s)\le\frac{2\varepsilon}{1-\gamma}\qquad\text{pour tout }s.
+\]
+De plus, si $\varepsilon<\Delta/2$, où $\Delta=\min_s\big(\max_aQ^*(s,a)-\max_{a\notin\mathcal A^*(s)}Q^*(s,a)\big)>0$ est le plus petit écart d'action ($\mathcal A^*(s)$ désignant l'ensemble des actions optimales en $s$, le minimum portant sur les états où $\mathcal A^*(s)\neq\cA$), alors $\pi$ est optimale.
+\end{proposition}
+\begin{proof}
+Soit $s$, $a=\pi(s)$ et $a^*\in\mathcal A^*(s)$. Comme $Q(s,a)\ge Q(s,a^*)$,
+\[
+Q^*(s,a^*)-Q^*(s,a)\le\big(Q(s,a^*)+\varepsilon\big)-\big(Q(s,a)-\varepsilon\big)\le2\varepsilon.
+\]
+En utilisant \eqref{eq-Q-from-V} pour $Q^*=Q^{\bar\pi}$ et pour $Q^\pi$,
+\[
+V^*(s)-V^\pi(s)=Q^*(s,a^*)-Q^\pi(s,a)=\big[Q^*(s,a^*)-Q^*(s,a)\big]+\gamma\sum_{s'}P(s'\mid s,a)\big[V^*(s')-V^\pi(s')\big].
+\]
+Le premier crochet est au plus $2\varepsilon$, le second terme au plus $\gamma\ninf{V^*-V^\pi}$. En passant au maximum sur $s$, $\ninf{V^*-V^\pi}\le2\varepsilon+\gamma\ninf{V^*-V^\pi}$, d'où la borne. La positivité vient de la définition de $V^*$. Pour le second point, si $a\notin\mathcal A^*(s)$ on aurait $Q^*(s,a^*)-Q^*(s,a)\ge\Delta>2\varepsilon$, ce qui contredit l'inégalité ci-dessus ; donc $\pi(s)\in\mathcal A^*(s)$ pour tout $s$, et $\pi$ est gloutonne pour $Q^*$, donc optimale par le \cref{thm-optimalite}(d).
+\end{proof}
+
+Sur notre GridWorld, l'écart d'action vaut $\Delta=\ActionGap$. Il suffit donc de connaître $Q^*$ à moins de $\ActionGapHalf$ près, uniformément, pour en déduire une politique optimale. Ce seuil servira à lire les courbes d'erreur de la \cref{sec-experiences}.
+
+%=====================================================================
+\section{Value Iteration}\label{sec-vi}
+%=====================================================================
+
+\subsection{Algorithme}
+
+Value Iteration consiste simplement à itérer l'opérateur de Bellman à partir d'un $Q_0$ quelconque (on prend $Q_0=0$) :
+\[
+Q_{k+1}(s,a)=(TQ_k)(s,a)=\sum_{s'}P(s'\mid s,a)\Big[R(s,a,s')+\gamma\max_{a'}Q_k(s',a')\Big].
+\]
+
+\begin{algorithm}[ht]
+\caption{Value Iteration (fonction \texttt{value\_iteration})}
+\KwIn{$P$, $R$, $\gamma\in[0,1)$, tolérance $\eta>0$}
+$Q_0\leftarrow0$, $k\leftarrow0$\;
+\Repeat{$\ninf{Q_{k}-Q_{k-1}}<\eta$}{
+  \For{$(s,a)\in\cS\times\cA$}{
+    $Q_{k+1}(s,a)\leftarrow\sum_{s'}P(s'\mid s,a)\big[R(s,a,s')+\gamma\max_{a'}Q_k(s',a')\big]$\;
+  }
+  $k\leftarrow k+1$\;
+}
+\KwOut{$Q_k\approx Q^*$ et la politique gloutonne $\pi(s)=\argmax_aQ_k(s,a)$}
+\end{algorithm}
+
+\subsection{Démonstration de convergence}
+
+\begin{theoreme}[Convergence de Value Iteration]\label{thm-vi}
+Pour tout $Q_0$, la suite $Q_{k+1}=TQ_k$ converge vers $Q^*$ et, pour tout $k$,
+\[
+\ninf{Q_k-Q^*}\le\gamma^k\ninf{Q_0-Q^*},\qquad
+\ninf{Q_{k+1}-Q^*}\le\frac{\gamma}{1-\gamma}\ninf{Q_{k+1}-Q_k}.
+\]
+En particulier, si l'algorithme s'arrête dès que $\ninf{Q_{k+1}-Q_k}<\eta$, l'erreur finale est inférieure à $\gamma\eta/(1-\gamma)$. Enfin, la politique gloutonne pour $Q_k$ est optimale dès que $\gamma^k\ninf{Q_0-Q^*}<\Delta/2$, donc après un nombre fini d'itérations.
+\end{theoreme}
+\begin{proof}
+C'est le \cref{thm-banach} appliqué à $T$ (\cref{thm-contraction}), sur l'espace complet $\mathcal Q$ (\cref{prop-complet}), dont le point fixe est $Q^*$ (\cref{thm-optimalite}). La dernière affirmation découle de la \cref{prop-perte}.
+\end{proof}
+
+\paragraph{Ce que le théorème ne dit pas : la vitesse réelle.} La borne $\gamma^k$ est un pire cas. Sur notre exemple, le rapport $\ninf{Q_{k+1}-Q^*}/\ninf{Q_k-Q^*}$ se stabilise vers $\VIRatioLast$, bien en dessous de $\gamma=0.9$ (\cref{fig-vi}). L'explication est la suivante. Une fois que les actions gloutonnes de $Q_k$ coïncident avec celles de $Q^*$ (ce qui arrive en un nombre fini d'itérations), on a $\max_{a'}Q_k(s',a')-\max_{a'}Q^*(s',a')=(Q_k-Q^*)(s',\pi^*(s'))$, et l'erreur évolue \emph{linéairement} : $e_{k+1}=\gamma PE_{\pi^*}e_k$, où $E_{\pi^*}$ sélectionne l'action optimale. L'erreur sur l'état absorbant $G$ est nulle, et le taux asymptotique est $\gamma\,\rho$, où $\rho$ est le rayon spectral de la matrice $P_{\pi^*}$ restreinte aux états non terminaux. Ici $\rho=\SpectralRho$ et $\gamma\rho=\AsymptoticRate$, ce qui correspond exactement au rapport observé. Intuitivement, la masse de probabilité « fuit » vers l'état absorbant, ce qui accélère la contraction au-delà de ce que garantit $\gamma$ seul. (Cet argument suppose une politique optimale unique en chaque état ; en l'état $S$, deux actions sont optimales par symétrie, ce qui ne change pas la conclusion observée.)

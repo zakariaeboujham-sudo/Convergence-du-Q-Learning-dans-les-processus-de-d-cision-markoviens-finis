@@ -1,0 +1,72 @@
+%=====================================================================
+\section{Discussion : théorie et expérience}\label{sec-discussion}
+%=====================================================================
+
+\paragraph{Ce que l'expérience confirme.}
+\begin{itemize}
+\item \emph{Contraction.} Le rapport $\ninf{TQ_1-TQ_2}/\ninf{Q_1-Q_2}$ ne dépasse jamais $\gamma$ et l'atteint dans le cas d'égalité prévu (\cref{thm-contraction}).
+\item \emph{Point fixe et optimalité.} La politique gloutonne pour le point fixe calculé a pour fonction $Q$ ce point fixe lui-même, et aucune des $\NumRandomPolicies$ politiques aléatoires testées ne le dépasse (\cref{thm-optimalite}).
+\item \emph{Value Iteration.} L'erreur reste sous la borne $\gamma^k\ninf{Q_0-Q^*}$ et le critère d'arrêt a posteriori est valide (\cref{thm-vi}).
+\item \emph{Q-Learning.} Lorsque toutes les paires sont visitées régulièrement et que le pas vérifie Robbins-Monro, $\ninf{Q_t-Q^*}$ décroît vers $0$ et la politique gloutonne devient optimale pour toutes les graines (\cref{thm-ql}).
+\item \emph{Hypothèses.} Chaque hypothèse du théorème a été « cassée » séparément, avec la conséquence prévue : pas constant $\Rightarrow$ plancher de bruit ; $\varepsilon=0$ $\Rightarrow$ paires jamais visitées, apprentissage figé et politique parfois sous-optimale.
+\end{itemize}
+
+\paragraph{Ce que la théorie ne dit pas et que l'expérience révèle.}
+\begin{itemize}
+\item \emph{La vitesse.} Le \cref{thm-ql} est asymptotique. En pratique, la convergence en norme infinie du Q-Learning est lente (décroissance approximativement polynomiale), alors que Value Iteration converge géométriquement, et même plus vite que $\gamma^k$ grâce à l'absorption ($\gamma\rho=\AsymptoticRate$).
+\item \emph{La norme infinie est un critère sévère.} $\ninf{Q_t-Q^*}$ est dominée par la paire la plus mal estimée, qui est presque toujours la moins visitée. L'erreur moyenne, l'erreur en $S$ ou la valeur de la politique gloutonne convergent bien plus tôt. La norme infinie est la bonne norme pour la \emph{preuve} (c'est celle où $T$ est contractante), mais pas nécessairement la meilleure mesure de \emph{performance}.
+\item \emph{« Infiniment souvent » n'est pas « souvent ».} Avec un départ fixe, l'hypothèse de visite infinie est satisfaite, mais certaines paires ne sont visitées que quelques centaines de fois en $100\,000$ épisodes. La symétrie du problème accentue l'effet : une graine qui s'engage sur un des deux chemins optimaux visite rarement l'autre côté de la grille.
+\item \emph{Le choix du pas compte, même parmi les pas admissibles.} $1/N$ et $1/N^{0.8}$ vérifient tous deux Robbins-Monro, mais le second est nettement plus rapide, conformément à l'analyse d'Even-Dar et Mansour (2003).
+\item \emph{L'initialisation compte.} $Q_0=0$ est optimiste dans ce problème et fournit une exploration implicite ; une initialisation pessimiste supprime ce mécanisme.
+\end{itemize}
+
+\paragraph{Limites de l'étude.} L'environnement est petit ($52$ paires état-action) et le modèle de glissement est simple ; les conclusions quantitatives (nombre d'épisodes, valeurs des erreurs) ne se transposent pas telles quelles à d'autres problèmes. Les balayages utilisent $10$ graines, ce qui suffit pour les tendances nettes mais pas pour départager des réglages proches (par exemple les épisodes de stabilisation pour $\gamma=0.95$ et $0.99$). Enfin, la preuve du lemme d'approximation stochastique n'a été qu'esquissée.
+
+%=====================================================================
+\section{Conclusion}
+%=====================================================================
+
+La convergence du Q-Learning repose sur une chaîne d'arguments dont chaque maillon a été établi ou expliqué :
+\begin{enumerate}
+\item la propriété de Markov permet d'écrire la valeur d'un état comme récompense immédiate plus valeur actualisée de l'état suivant (équations de Bellman) ;
+\item l'opérateur d'optimalité $T$ est une contraction de rapport $\gamma$ en norme infinie, parce que le $\max$ et l'espérance ne dilatent pas les écarts et que seul le facteur $\gamma$ les modifie ;
+\item le théorème de Banach donne alors un unique point fixe, qui est $Q^*$, et toute politique gloutonne pour $Q^*$ est optimale ; Value Iteration y converge géométriquement ;
+\item le Q-Learning est une version stochastique, asynchrone et sans modèle de cette itération : sa cible est un estimateur sans biais de $(TQ_t)(s_t,a_t)$ ;
+\item le bruit est éliminé par des pas qui vérifient $\sum\alpha=\infty$ (pour pouvoir apprendre) et $\sum\alpha^2<\infty$ (pour éteindre les fluctuations), à condition que chaque paire soit visitée infiniment souvent, ce que l'exploration $\varepsilon$-gloutonne garantit ;
+\item sous ces hypothèses, $Q_t\to Q^*$ presque sûrement, et c'est la contraction de Bellman qui fournit la condition clé du lemme d'approximation stochastique.
+\end{enumerate}
+Les expériences sur un GridWorld stochastique confirment chacun de ces points et montrent leur portée : la convergence est observée quand les hypothèses sont satisfaites, et elle échoue de la manière prévue quand on les retire. Elles montrent aussi ce que la théorie asymptotique ne dit pas : la vitesse, très dépendante du pas, de l'exploration et de la fréquence des visites.
+
+%=====================================================================
+\section{Perspectives}\label{sec-perspectives}
+%=====================================================================
+
+\begin{itemize}
+\item \textbf{Vitesses de convergence.} Des bornes non asymptotiques existent pour le Q-Learning (Even-Dar et Mansour, 2003, puis de nombreux travaux plus récents) ; les confronter aux courbes obtenues ici serait un prolongement naturel.
+\item \textbf{Exploration décroissante.} Avec $\varepsilon_t\to0$ assez lentement (politiques GLIE), la politique de comportement elle-même devient optimale (Singh et al., 2000), ce qui résout le compromis observé en \cref{sec-exp-eps}.
+\item \textbf{Biais de surestimation.} Le terme $\max_aQ_t(s',a)$ appliqué à des estimations bruitées est biaisé vers le haut ($\E[\max]\ge\max\E$) ; le Double Q-Learning (van Hasselt, 2010) corrige ce biais.
+\item \textbf{SARSA et méthodes « on-policy ».} Remplacer $\max_aQ(s',a)$ par $Q(s',a')$, où $a'$ est l'action réellement jouée, donne SARSA, dont l'analyse fait intervenir l'opérateur $T^\pi$ plutôt que $T$.
+\item \textbf{Approximation de fonctions.} Quand l'espace d'états est trop grand pour un tableau, on représente $Q$ par une fonction paramétrée (linéaire, puis réseau de neurones : Deep Q-Networks). La composition de $T$ avec une projection sur la classe de fonctions n'est plus contractante en norme infinie en général, et le Q-Learning peut diverger. Comprendre quand la contraction survit est une question de recherche active ; elle sort du périmètre de ce travail, mais les outils développés ici en sont le point de départ.
+\end{itemize}
+
+%=====================================================================
+\begin{thebibliography}{99}
+%=====================================================================
+\bibitem{banach} S.~Banach. Sur les opérations dans les ensembles abstraits et leur application aux équations intégrales. \emph{Fundamenta Mathematicae}, 3:133--181, 1922.
+\bibitem{bellman} R.~Bellman. \emph{Dynamic Programming}. Princeton University Press, 1957.
+\bibitem{bertsekas} D.~P.~Bertsekas et J.~N.~Tsitsiklis. \emph{Neuro-Dynamic Programming}. Athena Scientific, 1996.
+\bibitem{borkar} V.~S.~Borkar. \emph{Stochastic Approximation: A Dynamical Systems Viewpoint}. Cambridge University Press, 2008.
+\bibitem{evendar} E.~Even-Dar et Y.~Mansour. Learning rates for Q-learning. \emph{Journal of Machine Learning Research}, 5:1--25, 2003.
+\bibitem{jjs} T.~Jaakkola, M.~I.~Jordan et S.~P.~Singh. On the convergence of stochastic iterative dynamic programming algorithms. \emph{Neural Computation}, 6(6):1185--1201, 1994.
+\bibitem{norris} J.~R.~Norris. \emph{Markov Chains}. Cambridge University Press, 1997.
+\bibitem{puterman} M.~L.~Puterman. \emph{Markov Decision Processes: Discrete Stochastic Dynamic Programming}. Wiley, 1994.
+\bibitem{rm} H.~Robbins et S.~Monro. A stochastic approximation method. \emph{The Annals of Mathematical Statistics}, 22(3):400--407, 1951.
+\bibitem{singhyee} S.~P.~Singh et R.~C.~Yee. An upper bound on the loss from approximate optimal-value functions. \emph{Machine Learning}, 16(3):227--233, 1994.
+\bibitem{glie} S.~Singh, T.~Jaakkola, M.~L.~Littman et C.~Szepesvári. Convergence results for single-step on-policy reinforcement-learning algorithms. \emph{Machine Learning}, 38(3):287--308, 2000.
+\bibitem{sutton} R.~S.~Sutton et A.~G.~Barto. \emph{Reinforcement Learning: An Introduction}, 2\textsuperscript{e} édition. MIT Press, 2018.
+\bibitem{szepes} C.~Szepesvári. \emph{Algorithms for Reinforcement Learning}. Morgan \& Claypool, 2010.
+\bibitem{tsitsiklis} J.~N.~Tsitsiklis. Asynchronous stochastic approximation and Q-learning. \emph{Machine Learning}, 16(3):185--202, 1994.
+\bibitem{vanhasselt} H.~van Hasselt. Double Q-learning. \emph{Advances in Neural Information Processing Systems}, 23, 2010.
+\bibitem{watkins89} C.~J.~C.~H.~Watkins. \emph{Learning from Delayed Rewards}. Thèse de doctorat, University of Cambridge, 1989.
+\bibitem{watkinsdayan} C.~J.~C.~H.~Watkins et P.~Dayan. Q-learning. \emph{Machine Learning}, 8(3--4):279--292, 1992.
+\end{thebibliography}
